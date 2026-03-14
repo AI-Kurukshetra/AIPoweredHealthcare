@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 
 import { MfaSetupPanel } from "@/components/features/auth/MfaSetupPanel";
+import { AuthSplitLayout } from "@/components/layout/AuthSplitLayout";
+import { isMfaEnforced } from "@/config/env";
 import { createClient } from "@/lib/supabase/server";
 
 type MfaPageProps = {
@@ -20,18 +22,24 @@ export default async function MfaPage({ searchParams }: MfaPageProps) {
     redirect(`/login?next=${encodeURIComponent(nextPath)}`);
   }
 
+  if (!isMfaEnforced) {
+    redirect(nextPath);
+  }
+
   const { data: assuranceData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
   if (assuranceData?.currentLevel === "aal2") {
     redirect(nextPath);
   }
 
   return (
-    <div className="mx-auto mt-10 max-w-2xl space-y-4">
-      <h2 className="text-2xl font-semibold text-slate-900">Multi-factor authentication</h2>
-      <p className="text-sm text-slate-600">
-        AAL2 verification is required before accessing PHI workflows.
-      </p>
-      <MfaSetupPanel nextPath={nextPath} />
-    </div>
+    <AuthSplitLayout
+      badge="Identity Verification"
+      title="Complete multi-factor authentication"
+      description="AAL2 verification is required before access to PHI workflows and clinical operations."
+    >
+      <div className="w-full max-w-xl space-y-4">
+        <MfaSetupPanel nextPath={nextPath} />
+      </div>
+    </AuthSplitLayout>
   );
 }

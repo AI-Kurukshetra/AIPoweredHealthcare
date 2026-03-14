@@ -21,4 +21,17 @@ export const createVisitSchema = z.object({
   vitals: vitalsSchema.optional(),
 });
 
+export const updateVisitSchema = z
+  .object({
+    status: z.enum(["scheduled", "in_progress", "completed", "cancelled"]).optional(),
+    startedAt: z.string().datetime().nullable().optional(),
+    completedAt: z.string().datetime().nullable().optional(),
+    note: z.string().min(1).max(4000).optional(),
+    vitals: vitalsSchema.optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0, {
+    message: "At least one field is required.",
+  });
+
 export type CreateVisitSchema = z.infer<typeof createVisitSchema>;
+export type UpdateVisitSchema = z.infer<typeof updateVisitSchema>;

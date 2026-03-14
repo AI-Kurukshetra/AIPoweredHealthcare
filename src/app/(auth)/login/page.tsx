@@ -1,4 +1,9 @@
-import { signInWithPasswordAction } from "@/features/auth/actions";
+import Link from "next/link";
+import { ShieldCheck } from "lucide-react";
+
+import { LoginForm } from "@/components/features/auth/LoginForm";
+import { AuthSplitLayout } from "@/components/layout/AuthSplitLayout";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 type LoginPageProps = {
   searchParams: Promise<{ error?: string; next?: string }>;
@@ -9,47 +14,33 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const nextPath = params.next && params.next.startsWith("/") ? params.next : "/dashboard";
 
   return (
-    <section className="mx-auto mt-20 max-w-md rounded-lg border border-slate-200 bg-white p-8">
-      <h2 className="text-xl font-semibold text-slate-900">Sign in</h2>
-      <p className="mt-2 text-sm text-slate-600">Use your workforce account credentials.</p>
+    <AuthSplitLayout
+      badge="Secure Access"
+      title="Healthcare Workforce Platform"
+      description="Sign in to coordinate scheduling, compliance, and patient operations from a single secure workspace."
+    >
+      <Card className="auth-card mx-auto w-full max-w-md">
+        <CardHeader>
+          <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full bg-cyan-100 text-cyan-700">
+            <ShieldCheck className="h-5 w-5" />
+          </div>
+          <CardTitle>Welcome back</CardTitle>
+          <CardDescription>Sign in to access secure clinical operations.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <LoginForm nextPath={nextPath} initialError={params.error} />
 
-      <form action={signInWithPasswordAction} className="mt-6 space-y-4">
-        <input type="hidden" name="next" value={nextPath} />
-        <div>
-          <label htmlFor="email" className="mb-1 block text-sm font-medium text-slate-700">
-            Email
-          </label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            required
-            autoComplete="email"
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-slate-900 focus:ring-1"
-          />
-        </div>
-        <div>
-          <label htmlFor="password" className="mb-1 block text-sm font-medium text-slate-700">
-            Password
-          </label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            required
-            autoComplete="current-password"
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-slate-900 focus:ring-1"
-          />
-        </div>
-        <button
-          type="submit"
-          className="w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white"
-        >
-          Continue
-        </button>
-      </form>
-
-      {params.error ? <p className="mt-3 text-sm text-rose-700">{params.error}</p> : null}
-    </section>
+          <p className="mt-5 text-center text-sm text-slate-600">
+            New here?{" "}
+            <Link
+              className="font-semibold text-cyan-700 hover:text-cyan-600"
+              href={`/signup?next=${encodeURIComponent(nextPath)}`}
+            >
+              Create account
+            </Link>
+          </p>
+        </CardContent>
+      </Card>
+    </AuthSplitLayout>
   );
 }

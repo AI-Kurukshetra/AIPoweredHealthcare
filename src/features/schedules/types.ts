@@ -15,3 +15,10 @@ export type CreateScheduleInput = {
   endsAt: string;
   status?: "scheduled" | "confirmed" | "completed" | "cancelled";
 };
+
+export type UpdateScheduleInput = {
+  assignedStaffId?: string | null;
+  startsAt?: string;
+  endsAt?: string;
+  status?: "scheduled" | "confirmed" | "completed" | "cancelled";
+};

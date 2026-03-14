@@ -16,9 +16,9 @@ export function ChannelList({ channels }: ChannelListProps) {
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+    <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 shadow-[0_6px_24px_-16px_rgba(15,23,42,0.35)]">
       <table className="w-full text-left text-sm">
-        <thead className="bg-slate-50">
+        <thead className="bg-slate-100/70">
           <tr>
             <th className="px-4 py-3 font-semibold text-slate-700">Channel</th>
             <th className="px-4 py-3 font-semibold text-slate-700">Type</th>
@@ -28,7 +28,10 @@ export function ChannelList({ channels }: ChannelListProps) {
         </thead>
         <tbody>
           {channels.map((channel) => (
-            <tr key={channel.id} className="border-t border-slate-100">
+            <tr
+              key={channel.id}
+              className="border-t border-slate-100/80 transition hover:bg-slate-50/80"
+            >
               <td className="px-4 py-3 text-slate-900">{channel.name}</td>
               <td className="px-4 py-3 capitalize text-slate-700">{channel.channelType}</td>
               <td className="px-4 py-3 font-mono text-xs text-slate-600">

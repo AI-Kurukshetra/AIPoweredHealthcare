@@ -23,9 +23,9 @@ export function BillingTable({ records }: BillingTableProps) {
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+    <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 shadow-[0_6px_24px_-16px_rgba(15,23,42,0.35)]">
       <table className="w-full text-left text-sm">
-        <thead className="bg-slate-50">
+        <thead className="bg-slate-100/70">
           <tr>
             <th className="px-4 py-3 font-semibold text-slate-700">CPT/ICD-10</th>
             <th className="px-4 py-3 font-semibold text-slate-700">Units</th>
@@ -36,7 +36,10 @@ export function BillingTable({ records }: BillingTableProps) {
         </thead>
         <tbody>
           {records.map((record) => (
-            <tr key={record.id} className="border-t border-slate-100">
+            <tr
+              key={record.id}
+              className="border-t border-slate-100/80 transition hover:bg-slate-50/80"
+            >
               <td className="px-4 py-3 text-slate-900">
                 {record.cptCode}
                 {record.icd10Code ? ` / ${record.icd10Code}` : ""}

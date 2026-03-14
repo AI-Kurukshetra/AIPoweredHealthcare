@@ -1,5 +1,4 @@
-import { ChannelList } from "@/components/features/communications/ChannelList";
-import { MessageThread } from "@/components/features/communications/MessageThread";
+import { CommunicationsManager } from "@/components/features/communications/CommunicationsManager";
 import { env } from "@/config/env";
 import {
   getChannels,
@@ -14,15 +13,18 @@ export default async function CommunicationsPage() {
     : [];
 
   return (
-    <section className="space-y-4">
-      <h2 className="text-2xl font-semibold text-slate-900">Communications</h2>
-      <ChannelList channels={channels} />
+    <section className="space-y-5">
       <div>
-        <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">
-          Recent Messages {selectedChannel ? `(${selectedChannel.name})` : ""}
-        </h3>
-        <MessageThread messages={messages} />
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-700">
+          Secure Messaging
+        </p>
+        <h2 className="text-3xl font-semibold text-slate-950">Communications</h2>
       </div>
+      <CommunicationsManager
+        orgId={env.NEXT_PUBLIC_DEFAULT_ORG_ID}
+        initialChannels={channels}
+        initialMessages={messages}
+      />
     </section>
   );
 }

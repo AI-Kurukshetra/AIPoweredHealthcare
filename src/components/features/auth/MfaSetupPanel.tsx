@@ -3,8 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { CheckCircle2, Shield, Smartphone } from "lucide-react";
+import QRCode from "qrcode";
 
 import { createClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 type MfaSetupPanelProps = {
   nextPath: string;
@@ -12,12 +18,43 @@ type MfaSetupPanelProps = {
 
 type EnrollState = {
   factorId: string;
-  qrCodeSvg: string;
+  qrCodeSvg: string | null;
+  qrCodeDataUrl: string | null;
+  otpAuthUrl: string | null;
   secret: string;
 };
 
 function encodeQrDataUrl(qrCodeSvg: string) {
   return `data:image/svg+xml;utf-8,${encodeURIComponent(qrCodeSvg)}`;
+}
+
+function normalizeTotpCode(value: string) {
+  return value.replace(/\D/g, "").slice(0, 6);
+}
+
+async function resolveQrDataUrl(
+  qrCodeSvg: string | null,
+  otpAuthUrl: string | null
+) {
+  if (qrCodeSvg) {
+    const trimmed = qrCodeSvg.trim();
+    if (trimmed.startsWith("data:image/")) {
+      return trimmed;
+    }
+    if (trimmed.startsWith("<svg")) {
+      return encodeQrDataUrl(trimmed);
+    }
+  }
+
+  if (otpAuthUrl) {
+    try {
+      return await QRCode.toDataURL(otpAuthUrl, { margin: 1, width: 256 });
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
 }
 
 export function MfaSetupPanel({ nextPath }: MfaSetupPanelProps) {
@@ -43,23 +80,88 @@ export function MfaSetupPanel({ nextPath }: MfaSetupPanelProps) {
     setIsBusy(true);
     setErrorMessage(null);
 
+    const { data: listedFactors, error: listError } = await supabase.auth.mfa.listFactors();
+    if (listError) {
+      setIsBusy(false);
+      setErrorMessage("Unable to inspect existing MFA factors.");
+      return;
+    }
+
+    const existingTotpFactors = listedFactors?.totp ?? [];
+    const verifiedFactor = existingTotpFactors.find((factor) => factor.status === "verified");
+    if (verifiedFactor) {
+      setFactorId(verifiedFactor.id);
+      setEnrollState(null);
+      setIsBusy(false);
+      setErrorMessage(
+        "MFA is already enrolled for this account. Enter the current authenticator code to continue, or use Reset MFA Setup."
+      );
+      return;
+    }
+
+    // Remove stale unverified factors to avoid friendly-name conflicts.
+    for (const factor of existingTotpFactors) {
+      await supabase.auth.mfa.unenroll({ factorId: factor.id });
+    }
+
     const { data, error } = await supabase.auth.mfa.enroll({
       factorType: "totp",
-      friendlyName: "Healthcare Workforce TOTP",
+      friendlyName: `Healthcare Workforce TOTP ${new Date().toISOString()}`,
     });
 
     if (error || !data || !("totp" in data)) {
       setIsBusy(false);
-      setErrorMessage("Unable to enroll MFA right now.");
+      const enrollErrorCode = error?.code ?? "";
+      if (enrollErrorCode === "mfa_factor_name_conflict") {
+        setErrorMessage(
+          "A TOTP factor with this name already exists. Click Reset MFA Setup and enroll again."
+        );
+      } else {
+        setErrorMessage("Unable to enroll MFA right now.");
+      }
       return;
     }
+
+    const totpPayload = data.totp as {
+      qr_code?: string;
+      uri?: string;
+      secret?: string;
+    };
+
+    const qrCodeSvg = totpPayload.qr_code ?? null;
+    const otpAuthUrl = totpPayload.uri ?? null;
+    const qrCodeDataUrl = await resolveQrDataUrl(qrCodeSvg, otpAuthUrl);
 
     setFactorId(data.id);
     setEnrollState({
       factorId: data.id,
-      qrCodeSvg: data.totp.qr_code,
-      secret: data.totp.secret,
+      qrCodeSvg,
+      qrCodeDataUrl,
+      otpAuthUrl,
+      secret: totpPayload.secret ?? "",
     });
+    setIsBusy(false);
+  }
+
+  async function handleResetMfa() {
+    setIsBusy(true);
+    setErrorMessage(null);
+
+    const { data, error } = await supabase.auth.mfa.listFactors();
+    if (error) {
+      setIsBusy(false);
+      setErrorMessage("Unable to reset MFA factors right now.");
+      return;
+    }
+
+    const totpFactors = data?.totp ?? [];
+    for (const factor of totpFactors) {
+      await supabase.auth.mfa.unenroll({ factorId: factor.id });
+    }
+
+    setFactorId("");
+    setEnrollState(null);
+    setVerificationCode("");
     setIsBusy(false);
   }
 
@@ -67,32 +169,60 @@ export function MfaSetupPanel({ nextPath }: MfaSetupPanelProps) {
     setIsBusy(true);
     setErrorMessage(null);
 
-    const effectiveFactorId = factorId || enrollState?.factorId;
-    if (!effectiveFactorId) {
+    const normalizedCode = normalizeTotpCode(verificationCode);
+
+    if (normalizedCode.length !== 6) {
+      setIsBusy(false);
+      setErrorMessage("Enter a valid 6-digit authenticator code.");
+      return;
+    }
+
+    const { data: listedFactors, error: listError } = await supabase.auth.mfa.listFactors();
+    if (listError) {
+      setIsBusy(false);
+      setErrorMessage("Unable to load MFA factors for verification.");
+      return;
+    }
+
+    const orderedFactorIds = [
+      factorId,
+      enrollState?.factorId,
+      ...((listedFactors?.totp ?? []).map((factor) => factor.id)),
+    ].filter((id, index, arr): id is string => Boolean(id) && arr.indexOf(id) === index);
+
+    if (!orderedFactorIds.length) {
       setIsBusy(false);
       setErrorMessage("No MFA factor found. Enroll first.");
       return;
     }
 
-    const { data: challengeData, error: challengeError } = await supabase.auth.mfa.challenge({
-      factorId: effectiveFactorId,
-    });
+    let isVerified = false;
+    let lastErrorCode: string | null = null;
 
-    if (challengeError || !challengeData) {
-      setIsBusy(false);
-      setErrorMessage("Unable to create MFA challenge.");
-      return;
+    for (const candidateFactorId of orderedFactorIds) {
+      const { error: verifyError } = await supabase.auth.mfa.challengeAndVerify({
+        factorId: candidateFactorId,
+        code: normalizedCode,
+      });
+
+      if (!verifyError) {
+        isVerified = true;
+        setFactorId(candidateFactorId);
+        break;
+      }
+
+      lastErrorCode = verifyError.code ?? null;
     }
 
-    const { error: verifyError } = await supabase.auth.mfa.verify({
-      factorId: effectiveFactorId,
-      challengeId: challengeData.id,
-      code: verificationCode.trim(),
-    });
-
-    if (verifyError) {
+    if (!isVerified) {
       setIsBusy(false);
-      setErrorMessage("Invalid verification code. Try again.");
+      if (lastErrorCode === "mfa_verification_failed") {
+        setErrorMessage(
+          "Invalid code. Ensure your authenticator app time is set automatically and try the newest 6-digit code."
+        );
+      } else {
+        setErrorMessage("Unable to verify MFA right now. Try again.");
+      }
       return;
     }
 
@@ -101,67 +231,88 @@ export function MfaSetupPanel({ nextPath }: MfaSetupPanelProps) {
   }
 
   return (
-    <section className="space-y-5 rounded-lg border border-slate-200 bg-white p-6">
-      <div>
-        <h3 className="text-lg font-semibold text-slate-900">TOTP Authenticator Setup</h3>
-        <p className="mt-1 text-sm text-slate-600">
-          Enroll an authenticator app and verify a 6-digit code to reach AAL2.
-        </p>
-      </div>
-
-      {!enrollState ? (
-        <button
-          type="button"
-          onClick={handleEnrollTotp}
-          disabled={isBusy}
-          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-        >
-          {isBusy ? "Enrolling..." : "Enroll Authenticator"}
-        </button>
-      ) : (
-        <div className="space-y-3">
-          <Image
-            src={encodeQrDataUrl(enrollState.qrCodeSvg)}
-            alt="MFA QR code"
-            width={160}
-            height={160}
-            unoptimized
-            className="rounded-md border border-slate-200 bg-white p-2"
-          />
-          <p className="text-xs text-slate-600">
-            Can&apos;t scan? Use secret:
-            <span className="ml-2 rounded bg-slate-100 px-2 py-1 font-mono text-slate-800">
-              {enrollState.secret}
-            </span>
-          </p>
+    <Card className="auth-card border-cyan-100/80 bg-white/90">
+      <CardHeader>
+        <div className="mb-2 flex items-center gap-2 text-cyan-700">
+          <Shield className="h-4 w-4" />
+          <CardTitle className="text-lg">TOTP Authenticator Setup</CardTitle>
         </div>
-      )}
+        <CardDescription>
+          Enroll an authenticator app and verify a 6-digit code to reach AAL2.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        {!enrollState ? (
+          <Button
+            type="button"
+            onClick={handleEnrollTotp}
+            disabled={isBusy}
+            className="w-full bg-cyan-700 hover:bg-cyan-600"
+          >
+            <Smartphone className="h-4 w-4" />
+            {isBusy ? "Enrolling..." : "Enroll Authenticator"}
+          </Button>
+        ) : (
+          <div className="space-y-3">
+            {enrollState.qrCodeDataUrl ? (
+              <Image
+                src={enrollState.qrCodeDataUrl}
+                alt="MFA QR code"
+                width={176}
+                height={176}
+                unoptimized
+                className="rounded-xl border border-slate-200 bg-white p-3 shadow-[0_8px_28px_-20px_rgba(15,23,42,0.45)]"
+              />
+            ) : (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                QR preview unavailable. Use manual secret entry in your authenticator app.
+              </div>
+            )}
+            <p className="text-xs text-slate-600">
+              Can&apos;t scan? Use secret:
+              <span className="ml-2 rounded bg-slate-100 px-2 py-1 font-mono text-slate-800">
+                {enrollState.secret}
+              </span>
+            </p>
+            {enrollState.otpAuthUrl ? (
+              <p className="break-all text-xs text-slate-500">{enrollState.otpAuthUrl}</p>
+            ) : null}
+          </div>
+        )}
 
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-slate-700" htmlFor="totpCode">
-          Verification code
-        </label>
-        <input
-          id="totpCode"
-          name="totpCode"
-          value={verificationCode}
-          onChange={(event) => setVerificationCode(event.target.value)}
-          placeholder="123456"
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-slate-900 focus:ring-1"
-        />
-        <button
-          type="button"
-          onClick={handleVerifyTotp}
-          disabled={isBusy || verificationCode.trim().length < 6}
-          className="rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-        >
-          {isBusy ? "Verifying..." : "Verify and Continue"}
-        </button>
-      </div>
+        <div className="space-y-2">
+          <Label htmlFor="totpCode">Verification code</Label>
+          <Input
+            id="totpCode"
+            name="totpCode"
+            value={verificationCode}
+            onChange={(event) => setVerificationCode(normalizeTotpCode(event.target.value))}
+            placeholder="123456"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+          />
+          <Button
+            type="button"
+            onClick={handleVerifyTotp}
+            disabled={isBusy || verificationCode.trim().length < 6}
+            className="w-full bg-cyan-700 hover:bg-cyan-600"
+          >
+            <CheckCircle2 className="h-4 w-4" />
+            {isBusy ? "Verifying..." : "Verify and Continue"}
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={handleResetMfa}
+            disabled={isBusy}
+            className="w-full"
+          >
+            Reset MFA Setup
+          </Button>
+        </div>
 
-      {errorMessage ? <p className="text-sm text-rose-700">{errorMessage}</p> : null}
-    </section>
+        {errorMessage ? <p className="text-sm text-rose-700">{errorMessage}</p> : null}
+      </CardContent>
+    </Card>
   );
 }

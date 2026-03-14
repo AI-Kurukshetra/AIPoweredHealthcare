@@ -25,3 +25,17 @@ export type CreateVisitInput = {
     spo2?: string;
   };
 };
+
+export type UpdateVisitInput = {
+  status?: "scheduled" | "in_progress" | "completed" | "cancelled";
+  startedAt?: string | null;
+  completedAt?: string | null;
+  note?: string;
+  vitals?: {
+    systolic?: string;
+    diastolic?: string;
+    pulse?: string;
+    temperature?: string;
+    spo2?: string;
+  };
+};

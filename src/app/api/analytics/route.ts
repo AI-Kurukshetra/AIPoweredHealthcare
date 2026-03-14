@@ -5,6 +5,7 @@ import { logAudit } from "@/lib/audit/log";
 import { fail, ok } from "@/lib/api/responses";
 import { createClient } from "@/lib/supabase/server";
 import { getDashboardMetrics } from "@/services/analytics/dashboard-service";
+import { getAnalyticsInsights } from "@/services/analytics/insights-service";
 import { getRequestIp } from "@/utils/http";
 
 function resolveOrgId(request: NextRequest) {
@@ -24,9 +25,13 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const daysParam = Number(request.nextUrl.searchParams.get("days"));
+    const days = Number.isFinite(daysParam) && daysParam > 0 ? Math.round(daysParam) : null;
     const { user } = await resolveAuthContext(orgId);
     const supabase = await createClient();
-    const metrics = await getDashboardMetrics(supabase, orgId);
+    const data = days
+      ? await getAnalyticsInsights(supabase, orgId, days)
+      : await getDashboardMetrics(supabase, orgId);
 
     await logAudit({
       supabase,
@@ -38,7 +43,7 @@ export async function GET(request: NextRequest) {
       userAgent: request.headers.get("user-agent"),
     });
 
-    return ok(metrics);
+    return ok(data);
   } catch (error) {
     if (error instanceof AuthError) {
       return fail(
