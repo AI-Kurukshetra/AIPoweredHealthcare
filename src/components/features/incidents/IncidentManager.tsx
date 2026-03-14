@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { IncidentTable } from "@/components/features/incidents/IncidentTable";
 import type { IncidentListItem } from "@/features/incidents/types";
-
-type ApiResponse<T> = { data: T | null; error: { message: string } | null };
+import { apiGet, apiPost } from "@/lib/api/client";
+import { queryKeys } from "@/lib/query/keys";
 
 type IncidentManagerProps = {
   orgId: string;
@@ -13,13 +14,18 @@ type IncidentManagerProps = {
 };
 
 export function IncidentManager({ orgId, initialIncidents }: IncidentManagerProps) {
-  const [incidents, setIncidents] = useState(initialIncidents);
+  const queryClient = useQueryClient();
+  const [error, setError] = useState<string | null>(null);
+  const { data: incidents = initialIncidents } = useQuery({
+    queryKey: queryKeys.incidents(orgId, 1, 200),
+    queryFn: () => apiGet<IncidentListItem[]>("/api/incidents", { orgId, page: 1, limit: 200 }),
+    initialData: initialIncidents,
+  });
   const [severity, setSeverity] = useState<"1" | "2" | "3" | "4" | "5">("3");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [filter, setFilter] = useState("all");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const filtered = useMemo(
     () =>
@@ -29,30 +35,35 @@ export function IncidentManager({ orgId, initialIncidents }: IncidentManagerProp
     [incidents, filter]
   );
 
+  const createIncidentMutation = useMutation({
+    mutationFn: (input: {
+      severity: "1" | "2" | "3" | "4" | "5";
+      title: string;
+      description: string;
+      occurredAt: string;
+    }) => apiPost<IncidentListItem>("/api/incidents", input, { orgId }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["incidents", orgId] });
+    },
+    onError: (mutationError: Error) => {
+      setError(mutationError.message || "Unable to create incident.");
+    },
+  });
+
   async function createIncident() {
     setIsSubmitting(true);
     setError(null);
     try {
-      const response = await fetch(`/api/incidents?orgId=${orgId}`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
+      await createIncidentMutation.mutateAsync({
           severity,
           title,
           description,
           occurredAt: new Date().toISOString(),
-        }),
       });
-      const payload = (await response.json()) as ApiResponse<IncidentListItem>;
-      if (!response.ok || !payload.data) {
-        setError(payload.error?.message ?? "Unable to create incident.");
-        return;
-      }
-      setIncidents((current) => [payload.data!, ...current]);
       setTitle("");
       setDescription("");
     } catch {
-      setError("Unable to create incident.");
+      // handled by mutation onError
     } finally {
       setIsSubmitting(false);
     }

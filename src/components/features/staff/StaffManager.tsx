@@ -1,22 +1,35 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 import { StaffTable } from "@/components/features/staff/StaffTable";
+import { Pagination } from "@/components/shared/Pagination";
 import type { StaffListItem } from "@/features/staff/types";
+import { apiGet } from "@/lib/api/client";
+import { queryKeys } from "@/lib/query/keys";
 
 type StaffManagerProps = {
+  orgId: string;
   initialStaff: StaffListItem[];
 };
 
-export function StaffManager({ initialStaff }: StaffManagerProps) {
+export function StaffManager({ orgId, initialStaff }: StaffManagerProps) {
+  const [error, setError] = useState<string | null>(null);
+  const { data: staff = initialStaff } = useQuery({
+    queryKey: queryKeys.staff(orgId, 1, 200),
+    queryFn: () => apiGet<StaffListItem[]>("/api/staff", { orgId, page: 1, limit: 200 }),
+    initialData: initialStaff,
+  });
   const [query, setQuery] = useState("");
   const [role, setRole] = useState("all");
   const [status, setStatus] = useState("all");
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
   const filtered = useMemo(
     () =>
-      initialStaff.filter((member) => {
+      staff.filter((member) => {
         const matchesQuery =
           !query.trim() ||
           (member.fullName ?? "")
@@ -27,21 +40,32 @@ export function StaffManager({ initialStaff }: StaffManagerProps) {
         const matchesStatus = status === "all" || member.status === status;
         return matchesQuery && matchesRole && matchesStatus;
       }),
-    [initialStaff, query, role, status]
+    [query, role, staff, status]
   );
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const paged = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   return (
     <div className="space-y-4">
+      {error ? <p className="text-sm text-rose-700">{error}</p> : null}
       <div className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 md:grid-cols-3">
         <input
           value={query}
-          onChange={(event) => setQuery(event.target.value)}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setPage(1);
+          }}
           placeholder="Search by name or user id"
           className="rounded-md border border-slate-300 px-3 py-2 text-sm"
         />
         <select
           value={role}
-          onChange={(event) => setRole(event.target.value)}
+          onChange={(event) => {
+            setRole(event.target.value);
+            setPage(1);
+          }}
           className="rounded-md border border-slate-300 px-3 py-2 text-sm"
         >
           <option value="all">All roles</option>
@@ -53,7 +77,10 @@ export function StaffManager({ initialStaff }: StaffManagerProps) {
         </select>
         <select
           value={status}
-          onChange={(event) => setStatus(event.target.value)}
+          onChange={(event) => {
+            setStatus(event.target.value);
+            setPage(1);
+          }}
           className="rounded-md border border-slate-300 px-3 py-2 text-sm"
         >
           <option value="all">All status</option>
@@ -61,7 +88,14 @@ export function StaffManager({ initialStaff }: StaffManagerProps) {
           <option value="inactive">Inactive</option>
         </select>
       </div>
-      <StaffTable staff={filtered} />
+      <StaffTable staff={paged} />
+      <Pagination
+        page={currentPage}
+        totalPages={totalPages}
+        totalItems={filtered.length}
+        pageSize={pageSize}
+        onPageChange={setPage}
+      />
     </div>
   );
 }

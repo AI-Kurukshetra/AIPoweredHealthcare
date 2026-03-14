@@ -9,6 +9,14 @@ export type VisitListItem = {
   createdAt: string;
 };
 
+export type VisitNoteItem = {
+  id: string;
+  note: string;
+  vitals: Record<string, string> | null;
+  createdAt: string;
+  createdBy: string | null;
+};
+
 export type CreateVisitInput = {
   patientId: string;
   appointmentId?: string;

@@ -1,32 +1,52 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 import { IncidentTable } from "@/components/features/incidents/IncidentTable";
 import type { IncidentListItem } from "@/features/incidents/types";
+import { apiGet } from "@/lib/api/client";
+import { queryKeys } from "@/lib/query/keys";
 
 type ComplianceIncidentsManagerProps = {
+  orgId: string;
   initialIncidents: IncidentListItem[];
 };
 
 export function ComplianceIncidentsManager({
+  orgId,
   initialIncidents,
 }: ComplianceIncidentsManagerProps) {
+  const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState("open");
   const [severity, setSeverity] = useState("all");
+  const { data: incidentsData = initialIncidents } = useQuery({
+    queryKey: queryKeys.incidents(orgId, 1, 200),
+    queryFn: () => apiGet<IncidentListItem[]>("/api/incidents", { orgId, page: 1, limit: 200 }),
+    initialData: initialIncidents,
+  });
+  const incidents = useMemo(
+    () => incidentsData.filter((incident) => incident.status !== "resolved"),
+    [incidentsData]
+  );
 
   const filtered = useMemo(
     () =>
-      initialIncidents.filter((incident) => {
+      incidents.filter((incident) => {
         const matchesStatus = status === "all" ? true : incident.status === status;
         const matchesSeverity = severity === "all" ? true : incident.severity === severity;
         return matchesStatus && matchesSeverity;
       }),
-    [initialIncidents, severity, status]
+    [incidents, severity, status]
   );
+
+  useEffect(() => {
+    setError(null);
+  }, [orgId]);
 
   return (
     <div className="space-y-4">
+      {error ? <p className="text-sm text-rose-700">{error}</p> : null}
       <div className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 md:grid-cols-2">
         <select
           value={status}

@@ -9,8 +9,11 @@ import type { Database } from "@/types/database.types";
 export async function listCredentials(
   supabase: SupabaseClient<Database>,
   orgId: string,
-  staffId?: string
+  staffId?: string,
+  options: { offset?: number; limit?: number } = {}
 ): Promise<CredentialListItem[]> {
+  const offset = options.offset ?? 0;
+  const limit = options.limit ?? 200;
   let query = supabase
     .from("credentials")
     .select(
@@ -23,7 +26,7 @@ export async function listCredentials(
     query = query.eq("staff_id", staffId);
   }
 
-  const { data, error } = await query.limit(200);
+  const { data, error } = await query.range(offset, offset + limit - 1);
   if (error) {
     throw new Error("CREDENTIALS_LIST_FAILED");
   }

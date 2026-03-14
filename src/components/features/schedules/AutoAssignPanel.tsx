@@ -1,8 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { env } from "@/config/env";
+import { apiPost } from "@/lib/api/client";
 
 type AutoAssignResponse = {
   totalCandidates: number;
@@ -16,34 +18,39 @@ type AutoAssignResponse = {
 };
 
 export function AutoAssignPanel() {
+  const queryClient = useQueryClient();
   const [isRunning, setIsRunning] = useState(false);
   const [result, setResult] = useState<AutoAssignResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const endpoint = useMemo(
-    () => `/api/schedules/auto-assign?orgId=${env.NEXT_PUBLIC_DEFAULT_ORG_ID}`,
+    () => "/api/schedules/auto-assign",
     []
   );
+  const runMutation = useMutation({
+    mutationFn: () =>
+      apiPost<AutoAssignResponse>(endpoint, undefined, {
+        orgId: env.NEXT_PUBLIC_DEFAULT_ORG_ID,
+      }),
+    onSuccess: async (payload) => {
+      setResult(payload);
+      await queryClient.invalidateQueries({
+        queryKey: ["schedules", env.NEXT_PUBLIC_DEFAULT_ORG_ID],
+      });
+    },
+    onError: (mutationError: Error) => {
+      setError(mutationError.message || "Auto-assignment failed.");
+    },
+  });
 
   async function handleAutoAssign() {
     setIsRunning(true);
     setError(null);
 
     try {
-      const response = await fetch(endpoint, { method: "POST" });
-      const payload = (await response.json()) as {
-        data: AutoAssignResponse | null;
-        error: { message: string } | null;
-      };
-
-      if (!response.ok || !payload.data) {
-        setError(payload.error?.message ?? "Auto-assignment failed.");
-        return;
-      }
-
-      setResult(payload.data);
+      await runMutation.mutateAsync();
     } catch {
-      setError("Auto-assignment failed.");
+      // handled in mutation onError
     } finally {
       setIsRunning(false);
     }

@@ -10,14 +10,17 @@ import type { Database } from "@/types/database.types";
 
 export async function listChannels(
   supabase: SupabaseClient<Database>,
-  orgId: string
+  orgId: string,
+  options: { offset?: number; limit?: number } = {}
 ): Promise<CommunicationChannel[]> {
+  const offset = options.offset ?? 0;
+  const limit = options.limit ?? 50;
   const { data, error } = await supabase
     .from("channels")
     .select("id, name, channel_type, patient_id, created_at")
     .eq("org_id", orgId)
     .order("created_at", { ascending: false })
-    .limit(50);
+    .range(offset, offset + limit - 1);
 
   if (error) {
     throw new Error("CHANNEL_LIST_FAILED");
@@ -67,8 +70,11 @@ export async function createChannel(
 export async function listMessages(
   supabase: SupabaseClient<Database>,
   orgId: string,
-  channelId: string
+  channelId: string,
+  options: { offset?: number; limit?: number } = {}
 ): Promise<CommunicationMessage[]> {
+  const offset = options.offset ?? 0;
+  const limit = options.limit ?? 50;
   const { data, error } = await supabase
     .from("messages")
     .select("id, channel_id, sender_id, body, escalation_flag, created_at")
@@ -76,7 +82,7 @@ export async function listMessages(
     .eq("channel_id", channelId)
     .is("deleted_at", null)
     .order("created_at", { ascending: false })
-    .limit(50);
+    .range(offset, offset + limit - 1);
 
   if (error) {
     throw new Error("MESSAGE_LIST_FAILED");

@@ -37,11 +37,11 @@ INSERT INTO organization_members (org_id, user_id, role, status)
 SELECT
   '10000000-0000-0000-0000-000000000001'::uuid,
   id,
-  CASE rn % 5
-    WHEN 1 THEN 'org_admin'
-    WHEN 2 THEN 'care_coordinator'
-    WHEN 3 THEN 'field_nurse'
-    WHEN 4 THEN 'billing_staff'
+  CASE
+    WHEN rn % 10 = 0 THEN 'patient'
+    WHEN rn % 5 = 0 THEN 'billing_staff'
+    WHEN rn % 4 = 0 THEN 'care_coordinator'
+    WHEN rn % 3 = 0 THEN 'org_admin'
     ELSE 'field_nurse'
   END::healthcare_role,
   'active'::membership_status
@@ -249,29 +249,93 @@ FROM generate_series(1, 200) AS gs
 LEFT JOIN patient_pool p ON p.rn = gs
 CROSS JOIN creator c;
 
--- 200 messages.
-WITH channel_pool AS (
+-- Patient channel messages (patient request -> staff response).
+WITH patient_channels AS (
   SELECT id, row_number() OVER (ORDER BY id ASC) AS rn
   FROM channels
   WHERE org_id = '10000000-0000-0000-0000-000000000001'::uuid
+    AND channel_type = 'patient'
+),
+patient_pool AS (
+  SELECT user_id, row_number() OVER (ORDER BY user_id ASC) AS rn, count(*) OVER () AS patient_count
+  FROM organization_members
+  WHERE org_id = '10000000-0000-0000-0000-000000000001'::uuid
+    AND role = 'patient'
 ),
 staff_pool AS (
   SELECT user_id, row_number() OVER (ORDER BY user_id ASC) AS rn, count(*) OVER () AS staff_count
   FROM organization_members
   WHERE org_id = '10000000-0000-0000-0000-000000000001'::uuid
+    AND role <> 'patient'
 )
-INSERT INTO messages (id, org_id, channel_id, sender_id, body, escalation_flag, created_by, updated_by)
+INSERT INTO messages (id, org_id, channel_id, sender_id, body, escalation_flag, created_by, updated_by, created_at)
 SELECT
-  format('a0000000-0000-0000-0000-%s', lpad(to_hex(gs), 12, '0'))::uuid,
+  format('a1000000-0000-0000-0000-%s', lpad(to_hex(gs), 12, '0'))::uuid,
+  '10000000-0000-0000-0000-000000000001'::uuid,
+  ch.id,
+  p.user_id,
+  format('Patient request %s: follow-up needed.', gs),
+  false,
+  p.user_id,
+  p.user_id,
+  NOW() - INTERVAL '3 day' + (gs || ' minute')::interval
+FROM generate_series(1, 120) AS gs
+JOIN patient_channels ch ON ch.rn = gs
+JOIN patient_pool p ON p.rn = ((gs - 1) % NULLIF(p.patient_count, 0)) + 1;
+
+WITH patient_channels AS (
+  SELECT id, row_number() OVER (ORDER BY id ASC) AS rn
+  FROM channels
+  WHERE org_id = '10000000-0000-0000-0000-000000000001'::uuid
+    AND channel_type = 'patient'
+),
+staff_pool AS (
+  SELECT user_id, row_number() OVER (ORDER BY user_id ASC) AS rn, count(*) OVER () AS staff_count
+  FROM organization_members
+  WHERE org_id = '10000000-0000-0000-0000-000000000001'::uuid
+    AND role <> 'patient'
+)
+INSERT INTO messages (id, org_id, channel_id, sender_id, body, escalation_flag, created_by, updated_by, created_at)
+SELECT
+  format('a2000000-0000-0000-0000-%s', lpad(to_hex(gs), 12, '0'))::uuid,
   '10000000-0000-0000-0000-000000000001'::uuid,
   ch.id,
   s.user_id,
-  format('Synthetic message %s for channel activity load testing.', gs),
-  (gs % 25 = 0),
+  format('Staff response %s: acknowledged and scheduled.', gs),
+  (gs % 33 = 0),
   s.user_id,
-  s.user_id
-FROM generate_series(1, 200) AS gs
-JOIN channel_pool ch ON ch.rn = gs
+  s.user_id,
+  NOW() - INTERVAL '3 day' + ((gs + 20) || ' minute')::interval
+FROM generate_series(1, 120) AS gs
+JOIN patient_channels ch ON ch.rn = gs
+LEFT JOIN staff_pool s ON s.rn = ((gs - 1) % NULLIF(s.staff_count, 0)) + 1;
+
+-- Team channel chatter.
+WITH team_channels AS (
+  SELECT id, row_number() OVER (ORDER BY id ASC) AS rn
+  FROM channels
+  WHERE org_id = '10000000-0000-0000-0000-000000000001'::uuid
+    AND channel_type = 'team'
+),
+staff_pool AS (
+  SELECT user_id, row_number() OVER (ORDER BY user_id ASC) AS rn, count(*) OVER () AS staff_count
+  FROM organization_members
+  WHERE org_id = '10000000-0000-0000-0000-000000000001'::uuid
+    AND role <> 'patient'
+)
+INSERT INTO messages (id, org_id, channel_id, sender_id, body, escalation_flag, created_by, updated_by, created_at)
+SELECT
+  format('a3000000-0000-0000-0000-%s', lpad(to_hex(gs), 12, '0'))::uuid,
+  '10000000-0000-0000-0000-000000000001'::uuid,
+  ch.id,
+  s.user_id,
+  format('Team update %s: schedule coordination.', gs),
+  (gs % 45 = 0),
+  s.user_id,
+  s.user_id,
+  NOW() - INTERVAL '5 day' + ((gs * 3) || ' minute')::interval
+FROM generate_series(1, 80) AS gs
+JOIN team_channels ch ON ch.rn = gs
 LEFT JOIN staff_pool s ON s.rn = ((gs - 1) % NULLIF(s.staff_count, 0)) + 1;
 
 -- 200 billing records.
@@ -329,5 +393,36 @@ SELECT
   NOW() - ((gs % 720)::text || ' minute')::interval
 FROM generate_series(1, 200) AS gs
 LEFT JOIN staff_pool s ON s.rn = ((gs - 1) % NULLIF(s.staff_count, 0)) + 1;
+
+-- Seed KPI snapshot data for analytics.
+WITH actor AS (
+  SELECT user_id
+  FROM organization_members
+  WHERE org_id = '10000000-0000-0000-0000-000000000001'::uuid
+    AND role <> 'patient'
+  ORDER BY created_at ASC, user_id ASC
+  LIMIT 1
+)
+INSERT INTO audit_logs (id, org_id, actor_id, resource_type, resource_id, action, ip_address, user_agent, metadata, occurred_at)
+SELECT
+  'd0000000-0000-0000-0000-000000000001'::uuid,
+  '10000000-0000-0000-0000-000000000001'::uuid,
+  actor.user_id,
+  'kpi_snapshot',
+  NULL,
+  'EXPORT'::audit_action,
+  '10.0.1.15',
+  'seed.sql',
+  jsonb_build_object(
+    'kpi',
+    jsonb_build_object(
+      'patient_satisfaction', 88,
+      'system_uptime', 99.95,
+      'mobile_engagement', 64,
+      'integration_success', 98.7
+    )
+  ),
+  NOW() - INTERVAL '1 hour'
+FROM actor;
 
 COMMIT;

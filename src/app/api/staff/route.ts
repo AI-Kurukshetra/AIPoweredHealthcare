@@ -2,8 +2,8 @@ import { NextRequest } from "next/server";
 
 import { AuthError, resolveAuthContext } from "@/lib/auth/session";
 import { logAudit } from "@/lib/audit/log";
+import { privateCacheHeaders, resolvePagination } from "@/lib/api/request";
 import { fail, ok } from "@/lib/api/responses";
-import { createClient } from "@/lib/supabase/server";
 import { listStaff } from "@/services/staff/staff-service";
 import { getRequestIp } from "@/utils/http";
 
@@ -24,11 +24,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const { user } = await resolveAuthContext(orgId);
-    const supabase = await createClient();
-    const staff = await listStaff(supabase, orgId);
+    const pagination = resolvePagination(request, { limit: 100, maxLimit: 200 });
+    const { user, supabase } = await resolveAuthContext(orgId);
+    const staff = await listStaff(supabase, orgId, pagination);
 
-    await logAudit({
+    logAudit({
       supabase,
       actorId: user.id,
       orgId,
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
       userAgent: request.headers.get("user-agent"),
     });
 
-    return ok(staff);
+    return ok(staff, { headers: privateCacheHeaders() });
   } catch (error) {
     if (error instanceof AuthError) {
       return fail(

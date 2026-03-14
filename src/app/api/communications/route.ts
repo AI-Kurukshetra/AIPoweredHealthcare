@@ -4,8 +4,8 @@ import { ZodError } from "zod";
 import { createChannelSchema } from "@/features/communications/schemas";
 import { AuthError, resolveAuthContext } from "@/lib/auth/session";
 import { logAudit } from "@/lib/audit/log";
+import { privateCacheHeaders, resolvePagination } from "@/lib/api/request";
 import { fail, ok } from "@/lib/api/responses";
-import { createClient } from "@/lib/supabase/server";
 import {
   createChannel,
   listChannels,
@@ -29,11 +29,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const { user } = await resolveAuthContext(orgId);
-    const supabase = await createClient();
-    const channels = await listChannels(supabase, orgId);
+    const pagination = resolvePagination(request, { limit: 50, maxLimit: 200 });
+    const { user, supabase } = await resolveAuthContext(orgId);
+    const channels = await listChannels(supabase, orgId, pagination);
 
-    await logAudit({
+    logAudit({
       supabase,
       actorId: user.id,
       orgId,
@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
       userAgent: request.headers.get("user-agent"),
     });
 
-    return ok(channels);
+    return ok(channels, { headers: privateCacheHeaders() });
   } catch (error) {
     if (error instanceof AuthError) {
       return fail(
@@ -79,12 +79,11 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = createChannelSchema.parse(await request.json());
-    const { user } = await resolveAuthContext(orgId);
-    const supabase = await createClient();
+    const { user, supabase } = await resolveAuthContext(orgId);
 
     const channel = await createChannel(supabase, orgId, user.id, body);
 
-    await logAudit({
+    logAudit({
       supabase,
       actorId: user.id,
       orgId,

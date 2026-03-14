@@ -1,11 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { BillingTable } from "@/components/features/billing/BillingTable";
+import { InvoiceView } from "@/components/features/billing/InvoiceView";
+import { PaymentStatus } from "@/components/features/billing/PaymentStatus";
+import { Pagination } from "@/components/shared/Pagination";
 import type { BillingRecordListItem } from "@/features/billing/types";
-
-type ApiResponse<T> = { data: T | null; error: { message: string } | null };
+import { apiGet, apiPost } from "@/lib/api/client";
+import { queryKeys } from "@/lib/query/keys";
 
 type BillingManagerProps = {
   orgId: string;
@@ -13,7 +17,13 @@ type BillingManagerProps = {
 };
 
 export function BillingManager({ orgId, initialRecords }: BillingManagerProps) {
-  const [records, setRecords] = useState(initialRecords);
+  const queryClient = useQueryClient();
+  const [error, setError] = useState<string | null>(null);
+  const { data: records = initialRecords } = useQuery({
+    queryKey: queryKeys.billing(orgId, 1, 200),
+    queryFn: () => apiGet<BillingRecordListItem[]>("/api/billing", { orgId, page: 1, limit: 200 }),
+    initialData: initialRecords,
+  });
   const [visitId, setVisitId] = useState("");
   const [patientId, setPatientId] = useState("");
   const [cptCode, setCptCode] = useState("");
@@ -21,12 +31,26 @@ export function BillingManager({ orgId, initialRecords }: BillingManagerProps) {
   const [amount, setAmount] = useState("");
   const [filter, setFilter] = useState("all");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
   const filtered = useMemo(
     () => records.filter((record) => (filter === "all" ? true : record.status === filter)),
     [records, filter]
   );
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filter]);
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
 
   async function createBillingRecord() {
     const amountCents = Math.round(Number(amount) * 100);
@@ -38,34 +62,40 @@ export function BillingManager({ orgId, initialRecords }: BillingManagerProps) {
     setIsSubmitting(true);
     setError(null);
     try {
-      const response = await fetch(`/api/billing?orgId=${orgId}`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
+      await createBillingMutation.mutateAsync({
           visitId: visitId || undefined,
           patientId: patientId || undefined,
           cptCode,
           icd10Code: icd10Code || undefined,
           amountCents,
-        }),
       });
-      const payload = (await response.json()) as ApiResponse<BillingRecordListItem>;
-      if (!response.ok || !payload.data) {
-        setError(payload.error?.message ?? "Unable to create billing record.");
-        return;
-      }
-      setRecords((current) => [payload.data!, ...current]);
       setVisitId("");
       setPatientId("");
       setCptCode("");
       setIcd10Code("");
       setAmount("");
     } catch {
-      setError("Unable to create billing record.");
+      // handled in mutation onError
     } finally {
       setIsSubmitting(false);
     }
   }
+
+  const createBillingMutation = useMutation({
+    mutationFn: (input: {
+      visitId?: string;
+      patientId?: string;
+      cptCode: string;
+      icd10Code?: string;
+      amountCents: number;
+    }) => apiPost<BillingRecordListItem>("/api/billing", input, { orgId }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["billing", orgId] });
+    },
+    onError: (mutationError: Error) => {
+      setError(mutationError.message || "Unable to create billing record.");
+    },
+  });
 
   return (
     <div className="space-y-4">
@@ -124,8 +154,19 @@ export function BillingManager({ orgId, initialRecords }: BillingManagerProps) {
         </select>
       </div>
 
+      <PaymentStatus records={records} />
+
       {error ? <p className="text-sm text-rose-700">{error}</p> : null}
-      <BillingTable records={filtered} />
+      <BillingTable records={paged} />
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        totalItems={filtered.length}
+        pageSize={pageSize}
+        onPageChange={setPage}
+      />
+
+      <InvoiceView />
     </div>
   );
 }

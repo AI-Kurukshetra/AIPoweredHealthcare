@@ -5,7 +5,9 @@ import type { Database } from "@/types/database.types";
 export type DashboardMetrics = {
   totalPatients: number;
   activePatients: number;
+  activeStaff: number;
   visitsToday: number;
+  pendingBilling: number;
   openIncidents: number;
   openComplianceChecks: number;
 };
@@ -133,7 +135,15 @@ export async function getDashboardMetrics(
   supabase: SupabaseClient<Database>,
   orgId: string
 ): Promise<DashboardMetrics> {
-  const [totalPatientsResult, activePatientsResult, visitsTodayResult, openIncidentsResult, openComplianceResult] =
+  const [
+    totalPatientsResult,
+    activePatientsResult,
+    activeStaffResult,
+    visitsTodayResult,
+    pendingBillingResult,
+    openIncidentsResult,
+    openComplianceResult,
+  ] =
     await Promise.all([
       runCountQuery("totalPatients", async (signal) => {
         const result = await supabase
@@ -154,12 +164,32 @@ export async function getDashboardMetrics(
           .abortSignal(signal);
         return { count: result.count, error: result.error };
       }),
+      runCountQuery("activeStaff", async (signal) => {
+        const result = await supabase
+          .from("organization_members")
+          .select("id", { count: "exact", head: true })
+          .eq("org_id", orgId)
+          .eq("status", "active")
+          .neq("role", "patient")
+          .abortSignal(signal);
+        return { count: result.count, error: result.error };
+      }),
       runCountQuery("visitsToday", async (signal) => {
         const result = await supabase
           .from("visits")
           .select("id", { count: "exact", head: true })
           .eq("org_id", orgId)
           .gte("created_at", startOfUtcDayIso())
+          .is("deleted_at", null)
+          .abortSignal(signal);
+        return { count: result.count, error: result.error };
+      }),
+      runCountQuery("pendingBilling", async (signal) => {
+        const result = await supabase
+          .from("billing_records")
+          .select("id", { count: "exact", head: true })
+          .eq("org_id", orgId)
+          .eq("status", "pending")
           .is("deleted_at", null)
           .abortSignal(signal);
         return { count: result.count, error: result.error };
@@ -188,7 +218,9 @@ export async function getDashboardMetrics(
   return {
     totalPatients: safeCount("totalPatients", totalPatientsResult),
     activePatients: safeCount("activePatients", activePatientsResult),
+    activeStaff: safeCount("activeStaff", activeStaffResult),
     visitsToday: safeCount("visitsToday", visitsTodayResult),
+    pendingBilling: safeCount("pendingBilling", pendingBillingResult),
     openIncidents: safeCount("openIncidents", openIncidentsResult),
     openComplianceChecks: safeCount("openComplianceChecks", openComplianceResult),
   };

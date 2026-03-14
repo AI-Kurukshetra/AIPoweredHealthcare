@@ -6,7 +6,7 @@ import { AuthSplitLayout } from "@/components/layout/AuthSplitLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 type LoginPageProps = {
-  searchParams: Promise<{ error?: string; next?: string }>;
+  searchParams: Promise<{ next?: string }>;
 };
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
@@ -28,7 +28,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           <CardDescription>Sign in to access secure clinical operations.</CardDescription>
         </CardHeader>
         <CardContent>
-          <LoginForm nextPath={nextPath} initialError={params.error} />
+          <LoginForm nextPath={nextPath} />
 
           <p className="mt-5 text-center text-sm text-slate-600">
             New here?{" "}

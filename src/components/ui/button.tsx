@@ -5,15 +5,16 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full text-sm font-semibold transition-all outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
       variant: {
         default:
-          "bg-emerald-600 text-white hover:bg-emerald-500 focus-visible:ring-emerald-500 ring-offset-white",
+          "bg-gradient-to-r from-cyan-600 via-teal-600 to-emerald-600 text-white shadow-[0_12px_28px_-18px_rgba(13,148,136,0.7)] hover:-translate-y-0.5 hover:from-cyan-500 hover:to-emerald-500 focus-visible:ring-cyan-500 ring-offset-white",
         secondary:
-          "bg-white text-slate-800 border border-slate-300 hover:bg-slate-50 focus-visible:ring-slate-400 ring-offset-white",
-        ghost: "text-slate-700 hover:bg-slate-100 focus-visible:ring-slate-400 ring-offset-white",
+          "border border-slate-200 bg-white text-slate-800 shadow-sm hover:-translate-y-0.5 hover:bg-slate-50 focus-visible:ring-slate-400 ring-offset-white",
+        ghost:
+          "text-slate-700 hover:-translate-y-0.5 hover:bg-slate-100 focus-visible:ring-slate-400 ring-offset-white",
       },
       size: {
         default: "h-10 px-4 py-2",

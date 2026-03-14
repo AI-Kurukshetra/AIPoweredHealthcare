@@ -1,11 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { ComplianceDashboard } from "@/components/features/compliance/ComplianceDashboard";
+import { ExpiryAlerts } from "@/components/features/compliance/ExpiryAlerts";
 import { ComplianceTable } from "@/components/features/compliance/ComplianceTable";
+import { Pagination } from "@/components/shared/Pagination";
 import type { ComplianceListItem } from "@/features/compliance/types";
-
-type ApiResponse<T> = { data: T | null; error: { message: string } | null };
+import { apiGet, apiPost } from "@/lib/api/client";
+import { queryKeys } from "@/lib/query/keys";
 
 type ComplianceManagerProps = {
   orgId: string;
@@ -13,41 +17,66 @@ type ComplianceManagerProps = {
 };
 
 export function ComplianceManager({ orgId, initialRecords }: ComplianceManagerProps) {
-  const [records, setRecords] = useState(initialRecords);
+  const queryClient = useQueryClient();
+  const [error, setError] = useState<string | null>(null);
+  const { data: records = initialRecords } = useQuery({
+    queryKey: queryKeys.compliance(orgId, 1, 200),
+    queryFn: () => apiGet<ComplianceListItem[]>("/api/compliance", { orgId, page: 1, limit: 200 }),
+    initialData: initialRecords,
+  });
   const [status, setStatus] = useState("attention_required");
   const [staffId, setStaffId] = useState("");
   const [filter, setFilter] = useState("all");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
   const filtered = useMemo(
     () => records.filter((record) => (filter === "all" ? true : record.status === filter)),
     [records, filter]
   );
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filter]);
+
+  const createComplianceMutation = useMutation({
+    mutationFn: (input: {
+      status: string;
+      staffId?: string;
+      checkedAt: string;
+      details: { source: string };
+    }) => apiPost<ComplianceListItem>("/api/compliance", input, { orgId }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["compliance", orgId] });
+    },
+    onError: (mutationError: Error) => {
+      setError(mutationError.message || "Unable to create compliance record.");
+    },
+  });
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
+
   async function createRecord() {
     setIsSubmitting(true);
     setError(null);
     try {
-      const response = await fetch(`/api/compliance?orgId=${orgId}`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
+      await createComplianceMutation.mutateAsync({
           status,
           staffId: staffId || undefined,
           checkedAt: new Date().toISOString(),
           details: { source: "manual_entry" },
-        }),
       });
-      const payload = (await response.json()) as ApiResponse<ComplianceListItem>;
-      if (!response.ok || !payload.data) {
-        setError(payload.error?.message ?? "Unable to create compliance record.");
-        return;
-      }
-      setRecords((current) => [payload.data!, ...current]);
       setStaffId("");
     } catch {
-      setError("Unable to create compliance record.");
+      // handled by mutation onError
     } finally {
       setIsSubmitting(false);
     }
@@ -90,8 +119,18 @@ export function ComplianceManager({ orgId, initialRecords }: ComplianceManagerPr
           {isSubmitting ? "Creating..." : "Add Record"}
         </button>
       </div>
+      <ComplianceDashboard records={records} />
+      <ExpiryAlerts />
+
       {error ? <p className="text-sm text-rose-700">{error}</p> : null}
-      <ComplianceTable records={filtered} />
+      <ComplianceTable records={paged} />
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        totalItems={filtered.length}
+        pageSize={pageSize}
+        onPageChange={setPage}
+      />
     </div>
   );
 }

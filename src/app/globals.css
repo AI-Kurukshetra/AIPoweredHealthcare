@@ -4,6 +4,8 @@
   --background: #f2f6fb;
   --foreground: #0f172a;
   --panel: #ffffff;
+  --accent: #06b6d4;
+  --accent-strong: #0e7490;
 }
 
 @theme inline {
@@ -25,8 +27,9 @@ body::before {
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(58rem 35rem at -2% -10%, rgba(14, 165, 233, 0.22), transparent 70%),
-    radial-gradient(54rem 32rem at 102% 0%, rgba(20, 184, 166, 0.17), transparent 72%),
+    radial-gradient(55rem 35rem at -6% -10%, rgba(14, 165, 233, 0.25), transparent 70%),
+    radial-gradient(50rem 30rem at 108% 5%, rgba(20, 184, 166, 0.2), transparent 72%),
+    radial-gradient(40rem 22rem at 50% -20%, rgba(13, 148, 136, 0.18), transparent 70%),
     linear-gradient(165deg, rgba(255, 255, 255, 0.7), rgba(241, 245, 249, 0.65));
   z-index: -1;
 }
@@ -70,4 +73,31 @@ body::before {
     transform: translateY(0) scale(1);
     filter: blur(0);
   }
+}
+
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: rgba(248, 250, 252, 0.9);
+  backdrop-filter: blur(10px);
+}
+
+tbody tr {
+  transition: background-color 200ms ease, transform 200ms ease;
+}
+
+tbody tr:hover {
+  background-color: rgba(241, 245, 249, 0.7);
+}
+
+td,
+th {
+  padding: 0.85rem 1rem;
 }

@@ -1,21 +1,26 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { apiGet } from "@/lib/api/client";
+import { queryKeys } from "@/lib/query/keys";
 
 type DashboardMetrics = {
   totalPatients: number;
   activePatients: number;
+  activeStaff: number;
   visitsToday: number;
+  pendingBilling: number;
   openIncidents: number;
   openComplianceChecks: number;
 };
 
-type ApiResponse<T> = { data: T | null; error: { message: string } | null };
-
 const metricCards = [
   { key: "totalPatients", label: "Total Patients" },
   { key: "activePatients", label: "Active Patients" },
+  { key: "activeStaff", label: "Active Staff" },
   { key: "visitsToday", label: "Visits Today" },
+  { key: "pendingBilling", label: "Pending Billing" },
   { key: "openIncidents", label: "Open Incidents" },
   { key: "openComplianceChecks", label: "Open Compliance Checks" },
 ] as const;
@@ -26,43 +31,38 @@ type LiveMetricsPanelProps = {
 };
 
 export function LiveMetricsPanel({ orgId, initial }: LiveMetricsPanelProps) {
-  const [metrics, setMetrics] = useState(initial);
-  const [isLoading, setIsLoading] = useState(false);
+  const refreshIntervalMs = 180_000;
   const [error, setError] = useState<string | null>(null);
   const [lastUpdatedLabel, setLastUpdatedLabel] = useState("Pending");
-
-  const endpoint = useMemo(() => `/api/analytics?orgId=${orgId}`, [orgId]);
-
-  const refresh = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const response = await fetch(endpoint, { cache: "no-store" });
-      const payload = (await response.json()) as ApiResponse<DashboardMetrics>;
-      if (!response.ok || !payload.data) {
-        setError(payload.error?.message ?? "Unable to refresh metrics.");
-        return;
-      }
-      setMetrics(payload.data);
-      setLastUpdatedLabel(new Date().toLocaleTimeString());
-    } catch {
-      setError("Unable to refresh metrics.");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [endpoint]);
+  const {
+    data: metrics = initial,
+    isFetching: isLoading,
+    refetch,
+  } = useQuery({
+    queryKey: queryKeys.analytics(orgId),
+    queryFn: () => apiGet<DashboardMetrics>("/api/analytics", { orgId }),
+    initialData: initial,
+    refetchInterval: refreshIntervalMs,
+  });
 
   useEffect(() => {
     setLastUpdatedLabel(new Date().toLocaleTimeString());
   }, []);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      void refresh();
-    }, 45_000);
+    if (!isLoading) {
+      setLastUpdatedLabel(new Date().toLocaleTimeString());
+    }
+  }, [isLoading, metrics]);
 
-    return () => clearInterval(timer);
-  }, [refresh]);
+  async function refresh() {
+    setError(null);
+    try {
+      await refetch();
+    } catch {
+      setError("Unable to refresh metrics.");
+    }
+  }
 
   return (
     <div className="space-y-4">

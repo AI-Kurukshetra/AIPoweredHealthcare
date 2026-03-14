@@ -4,8 +4,8 @@ import { ZodError } from "zod";
 import { createScheduleSchema } from "@/features/schedules/schemas";
 import { AuthError, resolveAuthContext } from "@/lib/auth/session";
 import { logAudit } from "@/lib/audit/log";
+import { privateCacheHeaders, resolvePagination } from "@/lib/api/request";
 import { fail, ok } from "@/lib/api/responses";
-import { createClient } from "@/lib/supabase/server";
 import { createSchedule, listSchedules } from "@/services/schedules/schedule-service";
 import { getRequestIp } from "@/utils/http";
 
@@ -26,11 +26,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const { user } = await resolveAuthContext(orgId);
-    const supabase = await createClient();
-    const schedules = await listSchedules(supabase, orgId);
+    const pagination = resolvePagination(request, { limit: 100, maxLimit: 200 });
+    const { user, supabase } = await resolveAuthContext(orgId);
+    const schedules = await listSchedules(supabase, orgId, pagination);
 
-    await logAudit({
+    logAudit({
       supabase,
       actorId: user.id,
       orgId,
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
       userAgent: request.headers.get("user-agent"),
     });
 
-    return ok(schedules);
+    return ok(schedules, { headers: privateCacheHeaders() });
   } catch (error) {
     if (error instanceof AuthError) {
       return fail(
@@ -76,12 +76,11 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = createScheduleSchema.parse(await request.json());
-    const { user } = await resolveAuthContext(orgId);
-    const supabase = await createClient();
+    const { user, supabase } = await resolveAuthContext(orgId);
 
     const schedule = await createSchedule(supabase, orgId, user.id, body);
 
-    await logAudit({
+    logAudit({
       supabase,
       actorId: user.id,
       orgId,

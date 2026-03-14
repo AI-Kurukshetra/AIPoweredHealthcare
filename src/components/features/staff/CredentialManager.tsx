@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { CredentialListItem } from "@/features/credentials/types";
-
-type ApiResponse<T> = { data: T | null; error: { message: string } | null };
+import { apiGet, apiPost } from "@/lib/api/client";
+import { queryKeys } from "@/lib/query/keys";
 
 type CredentialManagerProps = {
   orgId: string;
@@ -22,13 +23,24 @@ export function CredentialManager({
   staffId,
   initialCredentials,
 }: CredentialManagerProps) {
-  const [credentials, setCredentials] = useState(initialCredentials);
+  const queryClient = useQueryClient();
+  const [error, setError] = useState<string | null>(null);
+  const { data: credentials = initialCredentials } = useQuery({
+    queryKey: queryKeys.credentials(orgId, staffId, 1, 200),
+    queryFn: () =>
+      apiGet<CredentialListItem[]>("/api/credentials", {
+        orgId,
+        staffId,
+        page: 1,
+        limit: 200,
+      }),
+    initialData: initialCredentials,
+  });
   const [credentialType, setCredentialType] = useState("");
   const [credentialNumber, setCredentialNumber] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const filtered = useMemo(
     () =>
@@ -38,31 +50,36 @@ export function CredentialManager({
     [credentials, statusFilter]
   );
 
+  const createCredentialMutation = useMutation({
+    mutationFn: (input: {
+      staffId: string;
+      credentialType: string;
+      credentialNumber?: string;
+      expiresAt: string;
+    }) => apiPost<CredentialListItem>("/api/credentials", input, { orgId }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["credentials", orgId] });
+    },
+    onError: (mutationError: Error) => {
+      setError(mutationError.message || "Unable to create credential.");
+    },
+  });
+
   async function create() {
     setIsSubmitting(true);
     setError(null);
     try {
-      const response = await fetch(`/api/credentials?orgId=${orgId}`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
+      await createCredentialMutation.mutateAsync({
           staffId,
           credentialType,
           credentialNumber: credentialNumber || undefined,
           expiresAt: new Date(expiresAt).toISOString(),
-        }),
       });
-      const payload = (await response.json()) as ApiResponse<CredentialListItem>;
-      if (!response.ok || !payload.data) {
-        setError(payload.error?.message ?? "Unable to create credential.");
-        return;
-      }
-      setCredentials((current) => [...current, payload.data!].sort((a, b) => a.expiresAt.localeCompare(b.expiresAt)));
       setCredentialType("");
       setCredentialNumber("");
       setExpiresAt("");
     } catch {
-      setError("Unable to create credential.");
+      // handled by mutation onError
     } finally {
       setIsSubmitting(false);
     }
@@ -119,8 +136,8 @@ export function CredentialManager({
           No credentials found for this staff member.
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-          <table className="w-full text-left text-sm">
+        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+          <table className="min-w-[720px] text-left text-sm">
             <thead className="bg-slate-50">
               <tr>
                 <th className="px-4 py-3 font-semibold text-slate-700">Type</th>

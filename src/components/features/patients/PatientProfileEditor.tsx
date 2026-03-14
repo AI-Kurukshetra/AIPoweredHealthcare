@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import type { PatientDetail } from "@/features/patients/types";
-
-type ApiResponse<T> = { data: T | null; error: { message: string } | null };
+import { apiPatch } from "@/lib/api/client";
 
 type PatientProfileEditorProps = {
   orgId: string;
@@ -14,31 +14,38 @@ type PatientProfileEditorProps = {
 
 export function PatientProfileEditor({ orgId, patient }: PatientProfileEditorProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [phone, setPhone] = useState(patient.phone ?? "");
   const [careStatus, setCareStatus] = useState(patient.careStatus);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      apiPatch<PatientDetail>(
+        `/api/patients/${patient.id}`,
+        {
+          phone: phone || null,
+          careStatus,
+        },
+        { orgId }
+      ),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["patients", orgId] });
+      await queryClient.invalidateQueries({ queryKey: ["patients", orgId, patient.id] });
+      router.refresh();
+    },
+    onError: (mutationError: Error) => {
+      setError(mutationError.message || "Unable to update patient profile.");
+    },
+  });
 
   async function save() {
     setIsSaving(true);
     setError(null);
     try {
-      const response = await fetch(`/api/patients/${patient.id}?orgId=${orgId}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          phone: phone || null,
-          careStatus,
-        }),
-      });
-      const payload = (await response.json()) as ApiResponse<PatientDetail>;
-      if (!response.ok || !payload.data) {
-        setError(payload.error?.message ?? "Unable to update patient profile.");
-        return;
-      }
-      router.refresh();
+      await saveMutation.mutateAsync();
     } catch {
-      setError("Unable to update patient profile.");
+      // handled by mutation onError
     } finally {
       setIsSaving(false);
     }

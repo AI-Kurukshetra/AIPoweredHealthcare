@@ -1,10 +1,26 @@
+import { Suspense } from "react";
+
 import { BillingManager } from "@/components/features/billing/BillingManager";
 import { env } from "@/config/env";
 import { getBillingRecords } from "@/features/billing/server/get-billing-records";
+import { withTimeout } from "@/lib/fetch-with-timeout";
 
-export default async function BillingPage() {
-  const records = await getBillingRecords(env.NEXT_PUBLIC_DEFAULT_ORG_ID);
+async function BillingData() {
+  const orgId = env.NEXT_PUBLIC_DEFAULT_ORG_ID;
+  try {
+    const records = await withTimeout(getBillingRecords(orgId));
+    return <BillingManager orgId={orgId} initialRecords={records} />;
+  } catch {
+    return (
+      <>
+        <DataUnavailableBanner />
+        <BillingManager orgId={orgId} initialRecords={[]} />
+      </>
+    );
+  }
+}
 
+export default function BillingPage() {
   return (
     <section className="space-y-5">
       <div>
@@ -13,10 +29,31 @@ export default async function BillingPage() {
         </p>
         <h2 className="text-3xl font-semibold text-slate-950">Billing</h2>
       </div>
-      <BillingManager
-        orgId={env.NEXT_PUBLIC_DEFAULT_ORG_ID}
-        initialRecords={records}
-      />
+      <Suspense fallback={<TableSkeleton />}>
+        <BillingData />
+      </Suspense>
     </section>
+  );
+}
+
+function DataUnavailableBanner() {
+  return (
+    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+      Could not load data — Supabase may be unavailable. Check your .env and project status.
+    </div>
+  );
+}
+
+function TableSkeleton() {
+  return (
+    <div className="space-y-3 animate-pulse">
+      <div className="flex gap-3">
+        <div className="h-9 w-40 rounded-full bg-slate-200" />
+        <div className="h-9 w-24 rounded-full bg-slate-200" />
+      </div>
+      {[1, 2, 3, 4, 5].map((i) => (
+        <div key={i} className="h-12 rounded-xl border border-slate-100 bg-slate-100/60" />
+      ))}
+    </div>
   );
 }

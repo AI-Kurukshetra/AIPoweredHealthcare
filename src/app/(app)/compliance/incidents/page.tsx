@@ -3,7 +3,8 @@ import { env } from "@/config/env";
 import { getIncidents } from "@/features/incidents/server/get-incidents";
 
 export default async function ComplianceIncidentsPage() {
-  const incidents = await getIncidents(env.NEXT_PUBLIC_DEFAULT_ORG_ID);
+  const orgId = env.NEXT_PUBLIC_DEFAULT_ORG_ID;
+  const incidents = await getIncidents(orgId);
   const complianceIncidents = incidents.filter(
     (incident) => incident.status !== "resolved"
   );
@@ -19,7 +20,7 @@ export default async function ComplianceIncidentsPage() {
       <p className="text-sm text-slate-600">
         Open and pending operational incidents requiring compliance review.
       </p>
-      <ComplianceIncidentsManager initialIncidents={complianceIncidents} />
+      <ComplianceIncidentsManager orgId={orgId} initialIncidents={complianceIncidents} />
     </section>
   );
 }

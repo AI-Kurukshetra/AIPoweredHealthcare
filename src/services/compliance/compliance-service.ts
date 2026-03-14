@@ -5,14 +5,17 @@ import type { Database } from "@/types/database.types";
 
 export async function listComplianceRecords(
   supabase: SupabaseClient<Database>,
-  orgId: string
+  orgId: string,
+  options: { offset?: number; limit?: number } = {}
 ): Promise<ComplianceListItem[]> {
+  const offset = options.offset ?? 0;
+  const limit = options.limit ?? 100;
   const { data, error } = await supabase
     .from("compliance_records")
     .select("id, credential_id, staff_id, status, checked_at, details")
     .eq("org_id", orgId)
     .order("checked_at", { ascending: false })
-    .limit(100);
+    .range(offset, offset + limit - 1);
 
   if (error) {
     throw new Error("COMPLIANCE_LIST_FAILED");

@@ -4,8 +4,8 @@ import { ZodError } from "zod";
 import { createPatientSchema } from "@/features/patients/schemas";
 import { AuthError, resolveAuthContext } from "@/lib/auth/session";
 import { logAudit } from "@/lib/audit/log";
+import { privateCacheHeaders, resolvePagination } from "@/lib/api/request";
 import { fail, ok } from "@/lib/api/responses";
-import { createClient } from "@/lib/supabase/server";
 import { createPatient, listPatients } from "@/services/patients/patient-service";
 import { getRequestIp } from "@/utils/http";
 
@@ -26,11 +26,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const { user } = await resolveAuthContext(orgId);
-    const supabase = await createClient();
-    const patients = await listPatients(supabase, orgId);
+    const pagination = resolvePagination(request, { limit: 50, maxLimit: 200 });
+    const { user, supabase } = await resolveAuthContext(orgId);
+    const patients = await listPatients(supabase, orgId, pagination);
 
-    await logAudit({
+    logAudit({
       supabase,
       actorId: user.id,
       orgId,
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
       userAgent: request.headers.get("user-agent"),
     });
 
-    return ok(patients);
+    return ok(patients, { headers: privateCacheHeaders() });
   } catch (error) {
     if (error instanceof AuthError) {
       return fail(
@@ -55,8 +55,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const detail =
+      error instanceof Error ? error.message : "Unknown error";
+    console.error("[GET /api/patients]", detail, error);
     return fail(
-      { code: "INTERNAL_ERROR", message: "Unable to fetch patients right now." },
+      { code: "INTERNAL_ERROR", message: `Unable to fetch patients: ${detail}` },
       { status: 500 }
     );
   }
@@ -76,12 +79,11 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = createPatientSchema.parse(await request.json());
-    const { user } = await resolveAuthContext(orgId);
-    const supabase = await createClient();
+    const { user, supabase } = await resolveAuthContext(orgId);
 
     const patient = await createPatient(supabase, orgId, user.id, body);
 
-    await logAudit({
+    logAudit({
       supabase,
       actorId: user.id,
       orgId,

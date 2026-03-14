@@ -9,15 +9,18 @@ import type { Database } from "@/types/database.types";
 
 export async function listSchedules(
   supabase: SupabaseClient<Database>,
-  orgId: string
+  orgId: string,
+  options: { offset?: number; limit?: number } = {}
 ): Promise<ScheduleListItem[]> {
+  const offset = options.offset ?? 0;
+  const limit = options.limit ?? 100;
   const { data, error } = await supabase
     .from("appointments")
     .select("id, patient_id, assigned_staff_id, status, starts_at, ends_at, created_at")
     .eq("org_id", orgId)
     .is("deleted_at", null)
     .order("starts_at", { ascending: true })
-    .limit(100);
+    .range(offset, offset + limit - 1);
 
   if (error) {
     throw new Error("SCHEDULES_LIST_FAILED");

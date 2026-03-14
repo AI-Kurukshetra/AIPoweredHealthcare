@@ -4,8 +4,8 @@ import { ZodError } from "zod";
 import { createCredentialSchema } from "@/features/credentials/schemas";
 import { AuthError, resolveAuthContext } from "@/lib/auth/session";
 import { logAudit } from "@/lib/audit/log";
+import { privateCacheHeaders, resolvePagination } from "@/lib/api/request";
 import { fail, ok } from "@/lib/api/responses";
-import { createClient } from "@/lib/supabase/server";
 import {
   createCredential,
   listCredentials,
@@ -30,11 +30,11 @@ export async function GET(request: NextRequest) {
 
   try {
     const staffId = request.nextUrl.searchParams.get("staffId") ?? undefined;
-    const { user } = await resolveAuthContext(orgId);
-    const supabase = await createClient();
-    const credentials = await listCredentials(supabase, orgId, staffId);
+    const pagination = resolvePagination(request, { limit: 100, maxLimit: 200 });
+    const { user, supabase } = await resolveAuthContext(orgId);
+    const credentials = await listCredentials(supabase, orgId, staffId, pagination);
 
-    await logAudit({
+    logAudit({
       supabase,
       actorId: user.id,
       orgId,
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
       userAgent: request.headers.get("user-agent"),
     });
 
-    return ok(credentials);
+    return ok(credentials, { headers: privateCacheHeaders() });
   } catch (error) {
     if (error instanceof AuthError) {
       return fail(
@@ -81,11 +81,10 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = createCredentialSchema.parse(await request.json());
-    const { user } = await resolveAuthContext(orgId);
-    const supabase = await createClient();
+    const { user, supabase } = await resolveAuthContext(orgId);
     const credential = await createCredential(supabase, orgId, user.id, body);
 
-    await logAudit({
+    logAudit({
       supabase,
       actorId: user.id,
       orgId,

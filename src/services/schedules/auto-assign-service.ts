@@ -61,22 +61,34 @@ export async function autoAssignSchedules(
     assignedStaffId: nurses[index % nurses.length]!.user_id,
   }));
 
-  let assigned = 0;
-  for (const assignment of assignments) {
-    const { error } = await supabase
-      .from("appointments")
-      .update({
-        assigned_staff_id: assignment.assignedStaffId,
-        updated_by: userId,
-      })
-      .eq("id", assignment.appointmentId)
-      .eq("org_id", orgId)
-      .is("deleted_at", null);
-
-    if (!error) {
-      assigned += 1;
+  // Group appointment IDs by nurse to perform one UPDATE per nurse
+  // instead of one UPDATE per appointment (eliminates N+1).
+  const byNurse = new Map<string, string[]>();
+  for (const { appointmentId, assignedStaffId } of assignments) {
+    const existing = byNurse.get(assignedStaffId);
+    if (existing) {
+      existing.push(appointmentId);
+    } else {
+      byNurse.set(assignedStaffId, [appointmentId]);
     }
   }
+
+  const updateResults = await Promise.all(
+    Array.from(byNurse.entries()).map(([nurseId, ids]) =>
+      supabase
+        .from("appointments")
+        .update({ assigned_staff_id: nurseId, updated_by: userId })
+        .in("id", ids)
+        .eq("org_id", orgId)
+        .is("deleted_at", null)
+        .select("id")
+    )
+  );
+
+  const assigned = updateResults.reduce(
+    (sum, r) => sum + (r.data?.length ?? 0),
+    0
+  );
 
   return {
     totalCandidates: candidates.length,

@@ -4,8 +4,8 @@ import { ZodError } from "zod";
 import { updateVisitSchema } from "@/features/visits/schemas";
 import { AuthError, resolveAuthContext } from "@/lib/auth/session";
 import { logAudit } from "@/lib/audit/log";
+import { privateCacheHeaders } from "@/lib/api/request";
 import { fail, ok } from "@/lib/api/responses";
-import { createClient } from "@/lib/supabase/server";
 import { getVisitById, updateVisitById } from "@/services/visits/visit-service";
 import { getRequestIp } from "@/utils/http";
 
@@ -30,8 +30,7 @@ export async function GET(
 
   try {
     const { id } = await context.params;
-    const { user } = await resolveAuthContext(orgId);
-    const supabase = await createClient();
+    const { user, supabase } = await resolveAuthContext(orgId);
     const visit = await getVisitById(supabase, orgId, id);
 
     if (!visit) {
@@ -44,7 +43,7 @@ export async function GET(
       );
     }
 
-    await logAudit({
+    logAudit({
       supabase,
       actorId: user.id,
       orgId,
@@ -55,7 +54,7 @@ export async function GET(
       userAgent: request.headers.get("user-agent"),
     });
 
-    return ok(visit);
+    return ok(visit, { headers: privateCacheHeaders() });
   } catch (error) {
     if (error instanceof AuthError) {
       return fail(
@@ -98,8 +97,7 @@ export async function PATCH(
   try {
     const body = updateVisitSchema.parse(await request.json());
     const { id } = await context.params;
-    const { user } = await resolveAuthContext(orgId);
-    const supabase = await createClient();
+    const { user, supabase } = await resolveAuthContext(orgId);
     const visit = await updateVisitById(supabase, orgId, id, user.id, body);
 
     if (!visit) {
@@ -112,7 +110,7 @@ export async function PATCH(
       );
     }
 
-    await logAudit({
+    logAudit({
       supabase,
       actorId: user.id,
       orgId,

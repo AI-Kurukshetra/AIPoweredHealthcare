@@ -1,17 +1,42 @@
+import { Suspense } from "react";
+
 import { CommunicationsManager } from "@/components/features/communications/CommunicationsManager";
 import { env } from "@/config/env";
 import {
   getChannels,
   getMessages,
 } from "@/features/communications/server/get-channels";
+import { withTimeout } from "@/lib/fetch-with-timeout";
 
-export default async function CommunicationsPage() {
-  const channels = await getChannels(env.NEXT_PUBLIC_DEFAULT_ORG_ID);
-  const selectedChannel = channels[0];
-  const messages = selectedChannel
-    ? await getMessages(env.NEXT_PUBLIC_DEFAULT_ORG_ID, selectedChannel.id)
-    : [];
+async function CommunicationsData() {
+  const orgId = env.NEXT_PUBLIC_DEFAULT_ORG_ID;
+  try {
+    const [channels, messages] = await withTimeout(
+      (async () => {
+        const ch = await getChannels(orgId);
+        const sel = ch[0];
+        const msgs = sel ? await getMessages(orgId, sel.id) : [];
+        return [ch, msgs] as const;
+      })()
+    );
+    return (
+      <CommunicationsManager
+        orgId={orgId}
+        initialChannels={channels}
+        initialMessages={messages}
+      />
+    );
+  } catch {
+    return (
+      <>
+        <DataUnavailableBanner />
+        <CommunicationsManager orgId={orgId} initialChannels={[]} initialMessages={[]} />
+      </>
+    );
+  }
+}
 
+export default function CommunicationsPage() {
   return (
     <section className="space-y-5">
       <div>
@@ -20,11 +45,33 @@ export default async function CommunicationsPage() {
         </p>
         <h2 className="text-3xl font-semibold text-slate-950">Communications</h2>
       </div>
-      <CommunicationsManager
-        orgId={env.NEXT_PUBLIC_DEFAULT_ORG_ID}
-        initialChannels={channels}
-        initialMessages={messages}
-      />
+      <Suspense fallback={<ChatSkeleton />}>
+        <CommunicationsData />
+      </Suspense>
     </section>
+  );
+}
+
+function DataUnavailableBanner() {
+  return (
+    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+      Could not load data — Supabase may be unavailable. Check your .env and project status.
+    </div>
+  );
+}
+
+function ChatSkeleton() {
+  return (
+    <div className="flex gap-4 animate-pulse">
+      <div className="w-48 shrink-0 space-y-2">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="h-12 rounded-xl bg-slate-100" />
+        ))}
+      </div>
+      <div className="flex-1 space-y-3">
+        <div className="h-10 rounded-xl bg-slate-100" />
+        <div className="h-40 rounded-xl bg-slate-100" />
+      </div>
+    </div>
   );
 }

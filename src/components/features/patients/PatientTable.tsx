@@ -18,8 +18,8 @@ export function PatientTable({ patients }: PatientTableProps) {
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 shadow-[0_6px_24px_-16px_rgba(15,23,42,0.35)]">
-      <table className="w-full text-left text-sm">
+    <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white/95 shadow-[0_6px_24px_-16px_rgba(15,23,42,0.35)]">
+      <table className="min-w-[640px] text-left text-sm">
         <thead className="bg-slate-100/70">
           <tr>
             <th className="px-4 py-3 font-semibold tracking-wide text-slate-700">Name</th>

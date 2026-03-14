@@ -4,20 +4,24 @@ import type {
   CreateVisitInput,
   UpdateVisitInput,
   VisitListItem,
+  VisitNoteItem,
 } from "@/features/visits/types";
 import type { Database } from "@/types/database.types";
 
 export async function listVisits(
   supabase: SupabaseClient<Database>,
-  orgId: string
+  orgId: string,
+  options: { offset?: number; limit?: number } = {}
 ): Promise<VisitListItem[]> {
+  const offset = options.offset ?? 0;
+  const limit = options.limit ?? 50;
   const { data, error } = await supabase
     .from("visits")
     .select("id, patient_id, appointment_id, assigned_staff_id, status, started_at, completed_at, created_at")
     .eq("org_id", orgId)
     .is("deleted_at", null)
     .order("created_at", { ascending: false })
-    .limit(50);
+    .range(offset, offset + limit - 1);
 
   if (error) {
     throw new Error("VISITS_LIST_FAILED");
@@ -190,4 +194,33 @@ export async function updateVisitById(
     completedAt: data.completed_at,
     createdAt: data.created_at,
   };
+}
+
+export async function listVisitNotes(
+  supabase: SupabaseClient<Database>,
+  orgId: string,
+  visitId: string,
+  options: { offset?: number; limit?: number } = {}
+): Promise<VisitNoteItem[]> {
+  const offset = options.offset ?? 0;
+  const limit = options.limit ?? 20;
+  const { data, error } = await supabase
+    .from("visit_notes")
+    .select("id, note, vitals, created_at, created_by")
+    .eq("org_id", orgId)
+    .eq("visit_id", visitId)
+    .order("created_at", { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (error) {
+    throw new Error("VISIT_NOTES_LIST_FAILED");
+  }
+
+  return data.map((row) => ({
+    id: row.id,
+    note: row.note,
+    vitals: row.vitals as Record<string, string> | null,
+    createdAt: row.created_at,
+    createdBy: row.created_by,
+  }));
 }

@@ -5,15 +5,18 @@ import type { Database } from "@/types/database.types";
 
 export async function listIncidents(
   supabase: SupabaseClient<Database>,
-  orgId: string
+  orgId: string,
+  options: { offset?: number; limit?: number } = {}
 ): Promise<IncidentListItem[]> {
+  const offset = options.offset ?? 0;
+  const limit = options.limit ?? 50;
   const { data, error } = await supabase
     .from("incidents")
     .select("id, patient_id, severity, title, status, occurred_at, created_at")
     .eq("org_id", orgId)
     .is("deleted_at", null)
     .order("occurred_at", { ascending: false })
-    .limit(50);
+    .range(offset, offset + limit - 1);
 
   if (error) {
     throw new Error("INCIDENTS_LIST_FAILED");

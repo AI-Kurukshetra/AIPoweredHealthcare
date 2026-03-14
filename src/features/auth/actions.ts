@@ -111,7 +111,10 @@ export async function signInWithPasswordAction(
   redirect(`/mfa?next=${encodeURIComponent(target)}`);
 }
 
-export async function signInWithGoogleAction(formData: FormData) {
+export async function signInWithGoogleAction(
+  _prevState: LoginFormState,
+  formData: FormData
+): Promise<LoginFormState> {
   const nextValue = String(formData.get("next") ?? "");
   const target = authRedirectTarget(nextValue);
   const supabase = await createClient();
@@ -131,7 +134,12 @@ export async function signInWithGoogleAction(formData: FormData) {
   });
 
   if (error || !data.url) {
-    redirect(`/login?error=${encodeURIComponent("Google sign-in is unavailable right now.")}`);
+    return {
+      formError: "Google sign-in is unavailable right now.",
+      values: {
+        next: nextValue,
+      },
+    };
   }
 
   redirect(data.url);

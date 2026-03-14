@@ -8,8 +8,11 @@ import type { Database } from "@/types/database.types";
 
 export async function listBillingRecords(
   supabase: SupabaseClient<Database>,
-  orgId: string
+  orgId: string,
+  options: { offset?: number; limit?: number } = {}
 ): Promise<BillingRecordListItem[]> {
+  const offset = options.offset ?? 0;
+  const limit = options.limit ?? 100;
   const { data, error } = await supabase
     .from("billing_records")
     .select(
@@ -18,7 +21,7 @@ export async function listBillingRecords(
     .eq("org_id", orgId)
     .is("deleted_at", null)
     .order("created_at", { ascending: false })
-    .limit(100);
+    .range(offset, offset + limit - 1);
 
   if (error) {
     throw new Error("BILLING_LIST_FAILED");

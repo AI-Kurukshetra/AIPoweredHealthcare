@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { env } from "@/config/env";
 import type { Json, Database } from "@/types/database.types";
 
 type AuditAction = "READ" | "CREATE" | "UPDATE" | "DELETE" | "EXPORT";
@@ -16,7 +17,7 @@ type AuditLogParams = {
   metadata?: Json;
 };
 
-export async function logAudit(params: AuditLogParams) {
+export function logAudit(params: AuditLogParams): void {
   const {
     supabase,
     actorId,
@@ -29,20 +30,25 @@ export async function logAudit(params: AuditLogParams) {
     metadata,
   } = params;
 
-  const { error } = await supabase.from("audit_logs").insert({
-    actor_id: actorId,
-    org_id: orgId,
-    resource_type: resourceType,
-    resource_id: resourceId ?? null,
-    action,
-    ip_address: ipAddress ?? null,
-    user_agent: userAgent ?? null,
-    metadata: metadata ?? null,
-    occurred_at: new Date().toISOString(),
-  });
-
-  // Audit logging should not block the primary request path.
-  if (error) {
-    console.error("AUDIT_LOG_WRITE_FAILED");
+  if (action === "READ" && !env.LOG_READ_AUDIT_EVENTS) {
+    return;
   }
+
+  // Fire-and-forget: does not block the response path.
+  void supabase
+    .from("audit_logs")
+    .insert({
+      actor_id: actorId,
+      org_id: orgId,
+      resource_type: resourceType,
+      resource_id: resourceId ?? null,
+      action,
+      ip_address: ipAddress ?? null,
+      user_agent: userAgent ?? null,
+      metadata: metadata ?? null,
+      occurred_at: new Date().toISOString(),
+    })
+    .then(({ error }) => {
+      if (error) console.error("AUDIT_LOG_WRITE_FAILED", error.message);
+    });
 }

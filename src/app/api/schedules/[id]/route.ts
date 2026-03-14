@@ -5,7 +5,6 @@ import { updateScheduleSchema } from "@/features/schedules/schemas";
 import { AuthError, resolveAuthContext } from "@/lib/auth/session";
 import { logAudit } from "@/lib/audit/log";
 import { fail, ok } from "@/lib/api/responses";
-import { createClient } from "@/lib/supabase/server";
 import { updateScheduleById } from "@/services/schedules/schedule-service";
 import { getRequestIp } from "@/utils/http";
 
@@ -31,8 +30,7 @@ export async function PATCH(
   try {
     const body = updateScheduleSchema.parse(await request.json());
     const { id } = await context.params;
-    const { user } = await resolveAuthContext(orgId);
-    const supabase = await createClient();
+    const { user, supabase } = await resolveAuthContext(orgId);
 
     const schedule = await updateScheduleById(supabase, orgId, id, user.id, body);
     if (!schedule) {
@@ -45,7 +43,7 @@ export async function PATCH(
       );
     }
 
-    await logAudit({
+    logAudit({
       supabase,
       actorId: user.id,
       orgId,

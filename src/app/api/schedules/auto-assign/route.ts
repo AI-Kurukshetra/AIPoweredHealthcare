@@ -3,7 +3,6 @@ import { NextRequest } from "next/server";
 import { AuthError, resolveAuthContext } from "@/lib/auth/session";
 import { logAudit } from "@/lib/audit/log";
 import { fail, ok } from "@/lib/api/responses";
-import { createClient } from "@/lib/supabase/server";
 import { autoAssignSchedules } from "@/services/schedules/auto-assign-service";
 import { getRequestIp } from "@/utils/http";
 
@@ -24,11 +23,10 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { user } = await resolveAuthContext(orgId);
-    const supabase = await createClient();
+    const { user, supabase } = await resolveAuthContext(orgId);
     const result = await autoAssignSchedules(supabase, orgId, user.id);
 
-    await logAudit({
+    logAudit({
       supabase,
       actorId: user.id,
       orgId,

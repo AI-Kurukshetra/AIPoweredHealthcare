@@ -2,8 +2,8 @@ import { NextRequest } from "next/server";
 
 import { AuthError, resolveAuthContext } from "@/lib/auth/session";
 import { logAudit } from "@/lib/audit/log";
+import { privateCacheHeaders, resolvePagination } from "@/lib/api/request";
 import { fail, ok } from "@/lib/api/responses";
-import { createClient } from "@/lib/supabase/server";
 import { listPatientVisits } from "@/services/patients/patient-service";
 import { getRequestIp } from "@/utils/http";
 
@@ -27,12 +27,12 @@ export async function GET(
   }
 
   try {
+    const pagination = resolvePagination(request, { limit: 20, maxLimit: 200 });
     const { id } = await context.params;
-    const { user } = await resolveAuthContext(orgId);
-    const supabase = await createClient();
-    const visits = await listPatientVisits(supabase, orgId, id);
+    const { user, supabase } = await resolveAuthContext(orgId);
+    const visits = await listPatientVisits(supabase, orgId, id, pagination);
 
-    await logAudit({
+    logAudit({
       supabase,
       actorId: user.id,
       orgId,
@@ -43,7 +43,7 @@ export async function GET(
       userAgent: request.headers.get("user-agent"),
     });
 
-    return ok(visits);
+    return ok(visits, { headers: privateCacheHeaders() });
   } catch (error) {
     if (error instanceof AuthError) {
       return fail(

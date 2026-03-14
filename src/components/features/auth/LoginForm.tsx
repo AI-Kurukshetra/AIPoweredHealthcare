@@ -15,7 +15,6 @@ import { ArrowRight } from "lucide-react";
 
 type LoginFormProps = {
   nextPath: string;
-  initialError?: string;
 };
 
 const initialState: LoginFormState = {};
@@ -63,12 +62,14 @@ function GoogleButton() {
   );
 }
 
-export function LoginForm({ nextPath, initialError }: LoginFormProps) {
+export function LoginForm({ nextPath }: LoginFormProps) {
   const [state, formAction] = useActionState(signInWithPasswordAction, initialState);
+  const [googleState, googleFormAction] = useActionState(signInWithGoogleAction, initialState);
+  const activeError = state.formError ?? googleState.formError;
 
   return (
     <div className="space-y-4">
-      <form action={signInWithGoogleAction}>
+      <form action={googleFormAction}>
         <input type="hidden" name="next" value={nextPath} />
         <GoogleButton />
       </form>
@@ -119,9 +120,9 @@ export function LoginForm({ nextPath, initialError }: LoginFormProps) {
         </div>
         <SubmitButton />
 
-        {state.formError || initialError ? (
+        {activeError ? (
           <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-            {state.formError ?? initialError}
+            {activeError}
           </p>
         ) : null}
       </form>

@@ -6,7 +6,7 @@ import { AuthSplitLayout } from "@/components/layout/AuthSplitLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 type SignupPageProps = {
-  searchParams: Promise<{ error?: string; next?: string }>;
+  searchParams: Promise<{ next?: string }>;
 };
 
 export default async function SignupPage({ searchParams }: SignupPageProps) {
@@ -28,7 +28,7 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
           <CardDescription>Start with secure login and MFA verification.</CardDescription>
         </CardHeader>
         <CardContent>
-          <SignupForm nextPath={nextPath} initialError={params.error} />
+          <SignupForm nextPath={nextPath} />
 
           <p className="mt-5 text-center text-sm text-slate-600">
             Already have an account?{" "}

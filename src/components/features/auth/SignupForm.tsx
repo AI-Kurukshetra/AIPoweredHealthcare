@@ -11,7 +11,6 @@ import { Label } from "@/components/ui/label";
 
 type SignupFormProps = {
   nextPath: string;
-  initialError?: string;
 };
 
 const initialState: SignupFormState = {};
@@ -47,7 +46,7 @@ function FieldErrors({ errors }: { errors?: string[] }) {
   );
 }
 
-export function SignupForm({ nextPath, initialError }: SignupFormProps) {
+export function SignupForm({ nextPath }: SignupFormProps) {
   const [state, formAction] = useActionState(signUpWithPasswordAction, initialState);
 
   return (
@@ -106,9 +105,9 @@ export function SignupForm({ nextPath, initialError }: SignupFormProps) {
 
       <SubmitButton />
 
-      {state.formError || initialError ? (
+      {state.formError ? (
         <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-          {state.formError ?? initialError}
+          {state.formError}
         </p>
       ) : null}
       {state.formInfo ? (
