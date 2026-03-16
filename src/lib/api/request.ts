@@ -1,5 +1,17 @@
 import type { NextRequest } from "next/server";
 
+import { env } from "@/config/env";
+
+/** Resolves orgId from query: accepts "orgId" or "org"; "default" maps to NEXT_PUBLIC_DEFAULT_ORG_ID. */
+export function resolveOrgId(request: NextRequest): string | null {
+  const raw =
+    request.nextUrl.searchParams.get("orgId") ??
+    request.nextUrl.searchParams.get("org");
+  if (!raw) return null;
+  if (raw === "default") return env.NEXT_PUBLIC_DEFAULT_ORG_ID;
+  return raw;
+}
+
 export type PaginationOptions = {
   page?: number;
   limit?: number;

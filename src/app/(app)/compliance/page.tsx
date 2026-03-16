@@ -7,17 +7,25 @@ import { withTimeout } from "@/lib/fetch-with-timeout";
 
 async function ComplianceData() {
   const orgId = env.NEXT_PUBLIC_DEFAULT_ORG_ID;
+  let records;
+  let hasError = false;
+
   try {
-    const records = await withTimeout(getCompliance(orgId));
-    return <ComplianceManager orgId={orgId} initialRecords={records} />;
+    records = await withTimeout(getCompliance(orgId));
   } catch {
-    return (
-      <>
-        <DataUnavailableBanner />
-        <ComplianceManager orgId={orgId} initialRecords={[]} />
-      </>
-    );
+    hasError = true;
   }
+
+  if (!hasError && records) {
+    return <ComplianceManager orgId={orgId} initialRecords={records} />;
+  }
+
+  return (
+    <>
+      <DataUnavailableBanner />
+      <ComplianceManager orgId={orgId} initialRecords={[]} />
+    </>
+  );
 }
 
 export default function CompliancePage() {

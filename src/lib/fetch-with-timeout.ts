@@ -4,7 +4,7 @@
  */
 export async function withTimeout<T>(
   promise: Promise<T>,
-  ms = 60_000,
+  ms = 8_000,
   message = "Request timed out. Check your Supabase connection and .env configuration."
 ): Promise<T> {
   const timeout = new Promise<never>((_, reject) =>

@@ -7,17 +7,25 @@ import { withTimeout } from "@/lib/fetch-with-timeout";
 
 async function StaffData() {
   const orgId = env.NEXT_PUBLIC_DEFAULT_ORG_ID;
+  let staff;
+  let hasError = false;
+
   try {
-    const staff = await withTimeout(getStaff(orgId));
-    return <StaffManager orgId={orgId} initialStaff={staff} />;
+    staff = await withTimeout(getStaff(orgId));
   } catch {
-    return (
-      <>
-        <DataUnavailableBanner />
-        <StaffManager orgId={orgId} initialStaff={[]} />
-      </>
-    );
+    hasError = true;
   }
+
+  if (!hasError && staff) {
+    return <StaffManager orgId={orgId} initialStaff={staff} />;
+  }
+
+  return (
+    <>
+      <DataUnavailableBanner />
+      <StaffManager orgId={orgId} initialStaff={[]} />
+    </>
+  );
 }
 
 export default function StaffPage() {

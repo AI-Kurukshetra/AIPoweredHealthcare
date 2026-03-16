@@ -10,6 +10,7 @@ import { Pagination } from "@/components/shared/Pagination";
 import type { BillingRecordListItem } from "@/features/billing/types";
 import { apiGet, apiPost } from "@/lib/api/client";
 import { queryKeys } from "@/lib/query/keys";
+import { useToast } from "@/hooks/useToast";
 
 type BillingManagerProps = {
   orgId: string;
@@ -18,10 +19,11 @@ type BillingManagerProps = {
 
 export function BillingManager({ orgId, initialRecords }: BillingManagerProps) {
   const queryClient = useQueryClient();
+  const { showSuccess, showError } = useToast();
   const [error, setError] = useState<string | null>(null);
   const { data: records = initialRecords } = useQuery({
     queryKey: queryKeys.billing(orgId, 1, 200),
-    queryFn: () => apiGet<BillingRecordListItem[]>("/api/billing", { orgId, page: 1, limit: 200 }),
+    queryFn: () => apiGet<BillingRecordListItem[]>("/api/billing", { orgId, page: 1, limit: 50 }),
     initialData: initialRecords,
   });
   const [visitId, setVisitId] = useState("");
@@ -91,9 +93,18 @@ export function BillingManager({ orgId, initialRecords }: BillingManagerProps) {
     }) => apiPost<BillingRecordListItem>("/api/billing", input, { orgId }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["billing", orgId] });
+      showSuccess({
+        title: "Billing record added",
+        description: "The billing record has been created.",
+      });
     },
     onError: (mutationError: Error) => {
-      setError(mutationError.message || "Unable to create billing record.");
+      const message = mutationError.message || "Unable to create billing record.";
+      setError(message);
+      showError({
+        title: "Billing not saved",
+        description: message,
+      });
     },
   });
 

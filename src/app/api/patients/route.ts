@@ -1,17 +1,15 @@
+import { unstable_cache } from "next/cache";
 import { NextRequest } from "next/server";
 import { ZodError } from "zod";
 
 import { createPatientSchema } from "@/features/patients/schemas";
 import { AuthError, resolveAuthContext } from "@/lib/auth/session";
+import { LIST_CACHE_REVALIDATE_SEC } from "@/lib/api/cache";
 import { logAudit } from "@/lib/audit/log";
-import { privateCacheHeaders, resolvePagination } from "@/lib/api/request";
+import { privateCacheHeaders, resolveOrgId, resolvePagination } from "@/lib/api/request";
 import { fail, ok } from "@/lib/api/responses";
 import { createPatient, listPatients } from "@/services/patients/patient-service";
 import { getRequestIp } from "@/utils/http";
-
-function resolveOrgId(request: NextRequest) {
-  return request.nextUrl.searchParams.get("orgId");
-}
 
 export async function GET(request: NextRequest) {
   const orgId = resolveOrgId(request);
@@ -28,7 +26,11 @@ export async function GET(request: NextRequest) {
   try {
     const pagination = resolvePagination(request, { limit: 50, maxLimit: 200 });
     const { user, supabase } = await resolveAuthContext(orgId);
-    const patients = await listPatients(supabase, orgId, pagination);
+    const patients = await unstable_cache(
+      () => listPatients(supabase, orgId, pagination),
+      ["api-patients", orgId, String(pagination.offset), String(pagination.limit)],
+      { revalidate: LIST_CACHE_REVALIDATE_SEC }
+    )();
 
     logAudit({
       supabase,
@@ -120,8 +122,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const detail =
+      error instanceof Error ? error.message : "Unknown error";
+    console.error("[POST /api/patients]", detail, error);
     return fail(
-      { code: "INTERNAL_ERROR", message: "Unable to create patient right now." },
+      { code: "INTERNAL_ERROR", message: `Unable to create patient: ${detail}` },
       { status: 500 }
     );
   }

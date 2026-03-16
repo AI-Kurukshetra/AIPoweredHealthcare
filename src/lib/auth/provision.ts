@@ -1,5 +1,6 @@
 import { env } from "@/config/env";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { HealthcareRole } from "@/types/app.types";
 
 function deriveFullName(email: string, fullName?: string) {
   if (fullName?.trim()) {
@@ -11,21 +12,28 @@ function deriveFullName(email: string, fullName?: string) {
 export async function provisionUserAccess(
   userId: string,
   email: string,
-  fullName?: string
+  fullName?: string,
+  role?: HealthcareRole
 ) {
   try {
     const admin = createAdminClient();
     const name = deriveFullName(email, fullName);
 
-    await admin.from("organization_members").upsert(
-      {
-        org_id: env.NEXT_PUBLIC_DEFAULT_ORG_ID,
-        user_id: userId,
-        role: "care_coordinator",
-        status: "active",
-      },
-      { onConflict: "org_id,user_id" }
-    );
+    const member: {
+      org_id: string;
+      user_id: string;
+      status: "active";
+      role: HealthcareRole;
+    } = {
+      org_id: env.NEXT_PUBLIC_DEFAULT_ORG_ID,
+      user_id: userId,
+      status: "active",
+      role: role ?? "patient",
+    };
+
+    await admin.from("organization_members").upsert(member, {
+      onConflict: "org_id,user_id",
+    });
 
     await admin.from("profiles").upsert(
       {

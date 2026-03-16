@@ -1,20 +1,18 @@
+import { unstable_cache } from "next/cache";
 import { NextRequest } from "next/server";
 import { ZodError } from "zod";
 
 import { createMessageSchema } from "@/features/communications/schemas";
 import { AuthError, resolveAuthContext } from "@/lib/auth/session";
+import { LIST_CACHE_REVALIDATE_SEC } from "@/lib/api/cache";
 import { logAudit } from "@/lib/audit/log";
-import { privateCacheHeaders, resolvePagination } from "@/lib/api/request";
+import { privateCacheHeaders, resolveOrgId, resolvePagination } from "@/lib/api/request";
 import { fail, ok } from "@/lib/api/responses";
 import {
   createMessage,
   listMessages,
 } from "@/services/communications/communications-service";
 import { getRequestIp } from "@/utils/http";
-
-function resolveOrgId(request: NextRequest) {
-  return request.nextUrl.searchParams.get("orgId");
-}
 
 export async function GET(
   request: NextRequest,
@@ -35,7 +33,11 @@ export async function GET(
     const pagination = resolvePagination(request, { limit: 50, maxLimit: 200 });
     const { channelId } = await context.params;
     const { user, supabase } = await resolveAuthContext(orgId);
-    const messages = await listMessages(supabase, orgId, channelId, pagination);
+    const messages = await unstable_cache(
+      () => listMessages(supabase, orgId, channelId, pagination),
+      ["api-messages", orgId, channelId, String(pagination.offset), String(pagination.limit)],
+      { revalidate: LIST_CACHE_REVALIDATE_SEC }
+    )();
 
     logAudit({
       supabase,

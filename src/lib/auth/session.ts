@@ -1,6 +1,5 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 
-import { createAdminClient } from "@/lib/supabase/admin";
 import { provisionUserAccess } from "@/lib/auth/provision";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database.types";
@@ -27,7 +26,6 @@ export type AuthContext = {
  */
 export async function resolveAuthContext(orgId: string): Promise<AuthContext> {
   const supabase = await createClient();
-  const admin = createAdminClient();
 
   const {
     data: { user },
@@ -37,7 +35,7 @@ export async function resolveAuthContext(orgId: string): Promise<AuthContext> {
     throw new AuthError("UNAUTHORIZED", "Authentication required.");
   }
 
-  let { data, error } = await admin
+  let { data, error } = await supabase
     .from("organization_members")
     .select("role, status")
     .eq("org_id", orgId)
@@ -45,18 +43,29 @@ export async function resolveAuthContext(orgId: string): Promise<AuthContext> {
     .maybeSingle();
 
   if (error || !data || data.status !== "active") {
-    // Auto-heal first-login provisioning gaps so RLS-protected API routes
-    // can immediately read/write data for the default org.
-    if (user.email) {
-      await provisionUserAccess(user.id, user.email, user.user_metadata?.full_name);
-      const retry = await admin
-        .from("organization_members")
-        .select("role, status")
-        .eq("org_id", orgId)
-        .eq("user_id", user.id)
-        .maybeSingle();
-      data = retry.data;
-      error = retry.error;
+    // Auto-provision: the user authenticated but has no active org membership yet.
+    // This covers first-login race conditions and sessions created before
+    // the provisioning hook was added.
+    try {
+      if (user.email) {
+        await provisionUserAccess(
+          user.id,
+          user.email,
+          user.user_metadata?.full_name,
+          user.user_metadata?.role as HealthcareRole | undefined
+        );
+
+        const retry = await supabase
+          .from("organization_members")
+          .select("role, status")
+          .eq("org_id", orgId)
+          .eq("user_id", user.id)
+          .maybeSingle();
+        data = retry.data;
+        error = retry.error;
+      }
+    } catch {
+      // provisionUserAccess failed — fall through to the FORBIDDEN check below
     }
 
     if (error || !data || data.status !== "active") {

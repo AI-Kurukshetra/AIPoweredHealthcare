@@ -10,6 +10,7 @@ import { MessageList } from "@/components/features/communications/MessageList";
 import type { CommunicationChannel, CommunicationMessage } from "@/features/communications/types";
 import { apiGet, apiPost } from "@/lib/api/client";
 import { queryKeys } from "@/lib/query/keys";
+import { useToast } from "@/hooks/useToast";
 
 type CommunicationsManagerProps = {
   orgId: string;
@@ -23,6 +24,7 @@ export function CommunicationsManager({
   initialMessages,
 }: CommunicationsManagerProps) {
   const queryClient = useQueryClient();
+  const { showSuccess, showError } = useToast();
   const [selectedChannelId, setSelectedChannelId] = useState(initialChannels[0]?.id ?? "");
   const [channelName, setChannelName] = useState("");
   const [channelType, setChannelType] = useState<"team" | "patient">("team");
@@ -32,7 +34,7 @@ export function CommunicationsManager({
   const { data: channels = initialChannels } = useQuery({
     queryKey: queryKeys.channels(orgId, 1, 200),
     queryFn: () =>
-      apiGet<CommunicationChannel[]>("/api/communications", { orgId, page: 1, limit: 200 }),
+      apiGet<CommunicationChannel[]>("/api/communications", { orgId, page: 1, limit: 50 }),
     initialData: initialChannels,
   });
   const { data: messages = initialMessages } = useQuery({
@@ -40,7 +42,7 @@ export function CommunicationsManager({
     queryFn: () =>
       apiGet<CommunicationMessage[]>(
         `/api/communications/${selectedChannelId}/messages`,
-        { orgId, page: 1, limit: 200 }
+        { orgId, page: 1, limit: 50 }
       ),
     enabled: Boolean(selectedChannelId),
     initialData: selectedChannelId ? initialMessages : [],
@@ -72,9 +74,18 @@ export function CommunicationsManager({
       await queryClient.invalidateQueries({ queryKey: ["communications", orgId] });
       setSelectedChannelId(newChannel.id);
       setChannelName("");
+      showSuccess({
+        title: "Channel created",
+        description: `"${newChannel.name}" is ready for messages.`,
+      });
     },
     onError: (mutationError: Error) => {
-      setError(mutationError.message || "Unable to create channel.");
+      const message = mutationError.message || "Unable to create channel.";
+      setError(message);
+      showError({
+        title: "Channel not created",
+        description: message,
+      });
     },
   });
 
@@ -90,9 +101,18 @@ export function CommunicationsManager({
         queryKey: queryKeys.messages(orgId, selectedChannelId, 1, 200),
       });
       setMessageText("");
+      showSuccess({
+        title: "Message sent",
+        description: "Your message was delivered to the channel.",
+      });
     },
     onError: (mutationError: Error) => {
-      setError(mutationError.message || "Unable to send message.");
+      const message = mutationError.message || "Unable to send message.";
+      setError(message);
+      showError({
+        title: "Message not sent",
+        description: message,
+      });
     },
   });
 

@@ -1,7 +1,7 @@
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { listComplianceRecords } from "@/services/compliance/compliance-service";
 
 export async function getCompliance(orgId: string) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   return listComplianceRecords(supabase, orgId);
 }

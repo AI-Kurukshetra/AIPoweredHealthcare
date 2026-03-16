@@ -12,6 +12,7 @@ import type { StaffListItem } from "@/features/staff/types";
 import type { VisitListItem } from "@/features/visits/types";
 import { apiGet, apiPatch, apiPost } from "@/lib/api/client";
 import { queryKeys } from "@/lib/query/keys";
+import { useToast } from "@/hooks/useToast";
 type VisitStatus = "scheduled" | "in_progress" | "completed" | "cancelled";
 
 type VisitManagerProps = {
@@ -76,9 +77,11 @@ export function VisitManager({ orgId, initialVisits, patients, staff }: VisitMan
   const pageSize = 10;
   const { data: fetchedVisits = initialVisits } = useQuery({
     queryKey: queryKeys.visits(orgId, 1, 200),
-    queryFn: () => apiGet<VisitListItem[]>("/api/visits", { orgId, page: 1, limit: 200 }),
+    queryFn: () => apiGet<VisitListItem[]>("/api/visits", { orgId, page: 1, limit: 50 }),
     initialData: initialVisits,
   });
+
+  const { showSuccess, showError } = useToast();
 
   useEffect(() => {
     setVisits(fetchedVisits);
@@ -146,6 +149,10 @@ export function VisitManager({ orgId, initialVisits, patients, staff }: VisitMan
     }) => apiPost<VisitListItem>("/api/visits", payload, { orgId }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["visits", orgId] });
+      showSuccess({
+        title: "Visit created",
+        description: "The visit has been added to the queue.",
+      });
     },
   });
 
@@ -163,6 +170,10 @@ export function VisitManager({ orgId, initialVisits, patients, staff }: VisitMan
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["visits", orgId] });
+      showSuccess({
+        title: "Visit updated",
+        description: "Visit status and details have been updated.",
+      });
     },
   });
 
@@ -189,7 +200,13 @@ export function VisitManager({ orgId, initialVisits, patients, staff }: VisitMan
       setNote("");
       setVitals(emptyVitals);
     } catch (mutationError) {
-      setError(mutationError instanceof Error ? mutationError.message : "Unable to create visit.");
+      const message =
+        mutationError instanceof Error ? mutationError.message : "Unable to create visit.";
+      setError(message);
+      showError({
+        title: "Visit not created",
+        description: message,
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -225,7 +242,13 @@ export function VisitManager({ orgId, initialVisits, patients, staff }: VisitMan
       setUpdateNote("");
       setUpdateVitals(emptyVitals);
     } catch (mutationError) {
-      setError(mutationError instanceof Error ? mutationError.message : "Unable to update visit.");
+      const message =
+        mutationError instanceof Error ? mutationError.message : "Unable to update visit.";
+      setError(message);
+      showError({
+        title: "Visit not updated",
+        description: message,
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -263,13 +286,63 @@ export function VisitManager({ orgId, initialVisits, patients, staff }: VisitMan
       </div>
 
       <section className="rounded-2xl border border-dashed border-amber-200 bg-amber-50/60 p-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">
-          Voice-to-Text Visit Documentation
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">
+            AI Voice-to-Text Visit Documentation
+          </p>
+        </div>
+        <p className="mt-2 text-sm text-slate-600 mb-3">
+          Paste or dictate your clinical notes below. We will use AI to automatically extract vitals and action items.
         </p>
-        <p className="mt-2 text-sm text-slate-600">
-          Placeholder for speech-to-text capture to auto-fill visit notes and vitals
-          during in-home or telehealth documentation.
-        </p>
+        <textarea
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="e.g. Patient BP 120/80 today, HR 72, temp 98.6. Follow up in one week."
+          className="w-full rounded-xl border border-amber-200/60 bg-white/80 px-4 py-3 text-sm focus:border-amber-400 focus:outline-none"
+          rows={3}
+        />
+        <div className="mt-3 flex justify-end">
+          <button
+            type="button"
+            disabled={!note || isSubmitting}
+            onClick={async () => {
+              try {
+                setIsSubmitting(true);
+                const res = await fetch("/api/ai/nlp", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ note }),
+                });
+                if (!res.ok) {
+                  const message = "Unable to extract vitals with AI.";
+                  showError({
+                    title: "AI extraction failed",
+                    description: message,
+                  });
+                  return;
+                }
+                const data = await res.json();
+                if (data.vitals) {
+                  setVitals((v) => ({ ...v, ...data.vitals }));
+                  showSuccess({
+                    title: "Vitals extracted",
+                    description: "AI populated vitals from your note.",
+                  });
+                }
+              } catch {
+                showError({
+                  title: "AI extraction failed",
+                  description: "We could not reach the AI service. Try again in a moment.",
+                });
+              } finally {
+                setIsSubmitting(false);
+              }
+            }}
+            className="rounded-lg bg-amber-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-amber-700 disabled:opacity-50"
+          >
+            Extract Vitals with AI
+          </button>
+        </div>
       </section>
 
       {error ? (

@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { IncidentTable } from "@/components/features/incidents/IncidentTable";
 import type { IncidentListItem } from "@/features/incidents/types";
 import { apiGet, apiPost } from "@/lib/api/client";
 import { queryKeys } from "@/lib/query/keys";
+import { useToast } from "@/hooks/useToast";
 
 type IncidentManagerProps = {
   orgId: string;
@@ -15,10 +16,11 @@ type IncidentManagerProps = {
 
 export function IncidentManager({ orgId, initialIncidents }: IncidentManagerProps) {
   const queryClient = useQueryClient();
+  const { showSuccess, showError } = useToast();
   const [error, setError] = useState<string | null>(null);
   const { data: incidents = initialIncidents } = useQuery({
     queryKey: queryKeys.incidents(orgId, 1, 200),
-    queryFn: () => apiGet<IncidentListItem[]>("/api/incidents", { orgId, page: 1, limit: 200 }),
+    queryFn: () => apiGet<IncidentListItem[]>("/api/incidents", { orgId, page: 1, limit: 50 }),
     initialData: initialIncidents,
   });
   const [severity, setSeverity] = useState<"1" | "2" | "3" | "4" | "5">("3");
@@ -44,9 +46,18 @@ export function IncidentManager({ orgId, initialIncidents }: IncidentManagerProp
     }) => apiPost<IncidentListItem>("/api/incidents", input, { orgId }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["incidents", orgId] });
+      showSuccess({
+        title: "Incident logged",
+        description: "The incident has been recorded in the registry.",
+      });
     },
     onError: (mutationError: Error) => {
-      setError(mutationError.message || "Unable to create incident.");
+      const message = mutationError.message || "Unable to create incident.";
+      setError(message);
+      showError({
+        title: "Incident not created",
+        description: message,
+      });
     },
   });
 

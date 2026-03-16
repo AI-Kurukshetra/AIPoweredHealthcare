@@ -1,5 +1,11 @@
 import { z } from "zod";
 
+/** Accepts any 8-4-4-4-12 hex UUID (e.g. seed IDs like 20000000-0000-0000-0000-000000000001). */
+const uuidLike = z.string().regex(
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+  "Invalid UUID"
+);
+
 const vitalsSchema = z
   .object({
     systolic: z.string().max(10).optional(),
@@ -11,9 +17,9 @@ const vitalsSchema = z
   .strict();
 
 export const createVisitSchema = z.object({
-  patientId: z.string().uuid(),
-  appointmentId: z.string().uuid().optional(),
-  assignedStaffId: z.string().uuid().optional(),
+  patientId: uuidLike,
+  appointmentId: uuidLike.optional(),
+  assignedStaffId: uuidLike.optional(),
   startedAt: z.string().datetime().optional(),
   completedAt: z.string().datetime().optional(),
   status: z.enum(["scheduled", "in_progress", "completed", "cancelled"]).optional(),

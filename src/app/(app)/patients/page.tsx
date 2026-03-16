@@ -7,17 +7,25 @@ import { withTimeout } from "@/lib/fetch-with-timeout";
 
 async function PatientsData() {
   const orgId = env.NEXT_PUBLIC_DEFAULT_ORG_ID;
+  let patients;
+  let hasError = false;
+
   try {
-    const patients = await withTimeout(getPatients(orgId));
-    return <PatientManager orgId={orgId} initialPatients={patients} />;
+    patients = await withTimeout(getPatients(orgId));
   } catch {
-    return (
-      <>
-        <DataUnavailableBanner />
-        <PatientManager orgId={orgId} initialPatients={[]} />
-      </>
-    );
+    hasError = true;
   }
+
+  if (!hasError && patients) {
+    return <PatientManager orgId={orgId} initialPatients={patients} />;
+  }
+
+  return (
+    <>
+      <DataUnavailableBanner />
+      <PatientManager orgId={orgId} initialPatients={[]} />
+    </>
+  );
 }
 
 export default function PatientsPage() {

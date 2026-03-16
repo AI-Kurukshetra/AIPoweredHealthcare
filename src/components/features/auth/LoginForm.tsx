@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import {
@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Eye, EyeOff } from "lucide-react";
 
 type LoginFormProps = {
   nextPath: string;
@@ -66,6 +66,7 @@ export function LoginForm({ nextPath }: LoginFormProps) {
   const [state, formAction] = useActionState(signInWithPasswordAction, initialState);
   const [googleState, googleFormAction] = useActionState(signInWithGoogleAction, initialState);
   const activeError = state.formError ?? googleState.formError;
+  const [showPassword, setShowPassword] = useState(false);
 
   return (
     <div className="space-y-4">
@@ -104,14 +105,25 @@ export function LoginForm({ nextPath }: LoginFormProps) {
         </div>
         <div className="space-y-2">
           <Label htmlFor="password">Password</Label>
-          <Input
-            id="password"
-            name="password"
-            type="password"
-            required
-            autoComplete="current-password"
-            aria-invalid={Boolean(state.fieldErrors?.password?.length)}
-          />
+          <div className="relative">
+            <Input
+              id="password"
+              name="password"
+              type={showPassword ? "text" : "password"}
+              required
+              autoComplete="current-password"
+              aria-invalid={Boolean(state.fieldErrors?.password?.length)}
+              className="pr-10"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((prev) => !prev)}
+              className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-500 hover:text-slate-700"
+              aria-label={showPassword ? "Hide password" : "Show password"}
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
           {state.fieldErrors?.password?.map((error) => (
             <p key={error} className="text-xs text-rose-700">
               {error}

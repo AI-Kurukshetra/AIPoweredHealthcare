@@ -3,6 +3,8 @@ import Link from "next/link";
 import { Bell, Search, UserCircle2 } from "lucide-react";
 
 import { signOutAction } from "@/features/auth/actions";
+import { env } from "@/config/env";
+import { resolveAuthContext } from "@/lib/auth/session";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard" },
@@ -16,11 +18,37 @@ const navItems = [
   { href: "/billing", label: "Billing" },
 ];
 
+const roleAccess: Record<string, string[]> = {
+  super_admin: ["/dashboard", "/analytics", "/staff", "/patients", "/visits", "/schedule", "/compliance", "/communications", "/billing"],
+  org_admin: ["/dashboard", "/analytics", "/staff", "/patients", "/visits", "/schedule", "/compliance", "/communications", "/billing"],
+  care_coordinator: ["/dashboard", "/patients", "/visits", "/schedule", "/communications"],
+  field_nurse: ["/dashboard", "/patients", "/visits", "/schedule", "/communications"],
+  billing_staff: ["/dashboard", "/billing", "/patients"],
+};
+
 type AppShellProps = {
   children: ReactNode;
 };
 
-export function AppShell({ children }: AppShellProps) {
+export async function AppShell({ children }: AppShellProps) {
+  let role = "admin";
+  let userName = "Care Admin";
+  let userEmail = "";
+  try {
+    const auth = await resolveAuthContext(env.NEXT_PUBLIC_DEFAULT_ORG_ID);
+    role = auth.role;
+    userName =
+      auth.user?.user_metadata?.full_name ||
+      auth.user?.email ||
+      "User";
+    userEmail = auth.user?.email || "";
+  } catch {
+    // Fallback if failing
+  }
+  
+  const allowedHrefs = roleAccess[role] || roleAccess.field_nurse;
+  const filteredNavItems = navItems.filter((item) => allowedHrefs.includes(item.href));
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <div className="flex min-h-screen">
@@ -34,7 +62,7 @@ export function AppShell({ children }: AppShellProps) {
             </h1>
           </div>
           <nav className="mt-8 space-y-2 text-sm">
-            {navItems.map((item) => (
+            {filteredNavItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
@@ -86,9 +114,23 @@ export function AppShell({ children }: AppShellProps) {
                 <button
                   type="button"
                   className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm"
+                  title={
+                    userEmail
+                      ? `${userName} • ${userEmail}`
+                      : userName
+                  }
                 >
                   <UserCircle2 className="h-4 w-4" />
-                  Care Admin
+                  <span className="flex flex-col items-start max-w-[160px] truncate">
+                    <span className="truncate">
+                      {userName} ({role.replace("_", " ")})
+                    </span>
+                    {userEmail && (
+                      <span className="truncate text-xs font-normal text-slate-500">
+                        {userEmail}
+                      </span>
+                    )}
+                  </span>
                 </button>
               </div>
             </div>

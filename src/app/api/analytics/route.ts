@@ -1,15 +1,26 @@
+import { unstable_cache } from "next/cache";
 import { NextRequest } from "next/server";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 import { AuthError, resolveAuthContext } from "@/lib/auth/session";
-import { logAudit } from "@/lib/audit/log";
-import { privateCacheHeaders } from "@/lib/api/request";
+
+export const dynamic = "force-dynamic";
+import { privateCacheHeaders, resolveOrgId } from "@/lib/api/request";
 import { fail, ok } from "@/lib/api/responses";
 import { getDashboardMetrics } from "@/services/analytics/dashboard-service";
 import { getAnalyticsInsights } from "@/services/analytics/insights-service";
-import { getRequestIp } from "@/utils/http";
 
-function resolveOrgId(request: NextRequest) {
-  return request.nextUrl.searchParams.get("orgId");
+const CACHE_REVALIDATE_SEC = 300;
+
+async function fetchAnalyticsData(
+  supabase: SupabaseClient,
+  orgId: string,
+  days: number | null
+) {
+  return days
+    ? getAnalyticsInsights(supabase, orgId, days)
+    : getDashboardMetrics(supabase, orgId);
 }
 
 export async function GET(request: NextRequest) {
@@ -27,20 +38,13 @@ export async function GET(request: NextRequest) {
   try {
     const daysParam = Number(request.nextUrl.searchParams.get("days"));
     const days = Number.isFinite(daysParam) && daysParam > 0 ? Math.round(daysParam) : null;
-    const { user, supabase } = await resolveAuthContext(orgId);
-    const data = days
-      ? await getAnalyticsInsights(supabase, orgId, days)
-      : await getDashboardMetrics(supabase, orgId);
+    const { supabase } = await resolveAuthContext(orgId);
 
-    logAudit({
-      supabase,
-      actorId: user.id,
-      orgId,
-      resourceType: "analytics",
-      action: "READ",
-      ipAddress: getRequestIp(request),
-      userAgent: request.headers.get("user-agent"),
-    });
+    const data = await unstable_cache(
+      () => fetchAnalyticsData(supabase, orgId, days),
+      ["api-analytics", orgId, String(days ?? "metrics")],
+      { revalidate: CACHE_REVALIDATE_SEC }
+    )();
 
     return ok(data, { headers: privateCacheHeaders(30, 120) });
   } catch (error) {

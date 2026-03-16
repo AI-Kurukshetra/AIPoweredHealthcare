@@ -10,6 +10,7 @@ import { PatientTable } from "@/components/features/patients/PatientTable";
 import { Pagination } from "@/components/shared/Pagination";
 import { apiGet, apiPost } from "@/lib/api/client";
 import { queryKeys } from "@/lib/query/keys";
+import { useToast } from "@/hooks/useToast";
 
 type PatientManagerProps = {
   orgId: string;
@@ -18,6 +19,7 @@ type PatientManagerProps = {
 
 export function PatientManager({ orgId, initialPatients }: PatientManagerProps) {
   const queryClient = useQueryClient();
+  const { showSuccess, showError } = useToast();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | PatientListItem["careStatus"]>("all");
   const [page, setPage] = useState(1);
@@ -36,7 +38,7 @@ export function PatientManager({ orgId, initialPatients }: PatientManagerProps) 
   } = useQuery({
     queryKey: queryKeys.patients(orgId, 1, 200),
     queryFn: () =>
-      apiGet<PatientListItem[]>("/api/patients", { orgId, page: 1, limit: 200 }),
+      apiGet<PatientListItem[]>("/api/patients", { orgId, page: 1, limit: 50 }),
     initialData: initialPatients,
   });
 
@@ -98,9 +100,18 @@ export function PatientManager({ orgId, initialPatients }: PatientManagerProps) 
         }
       );
       await queryClient.invalidateQueries({ queryKey: ["patients", orgId] });
+      showSuccess({
+        title: "Patient created",
+        description: `${createdPatient.firstName} ${createdPatient.lastName} was added to the registry.`,
+      });
     },
     onError: (mutationError: Error) => {
-      setError(mutationError.message || "Unable to create patient.");
+      const message = mutationError.message || "Unable to create patient.";
+      setError(message);
+      showError({
+        title: "Patient not created",
+        description: message,
+      });
     },
   });
 

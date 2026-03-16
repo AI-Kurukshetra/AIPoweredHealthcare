@@ -19,10 +19,20 @@ const AnalyticsWorkbench = dynamic(
 
 async function AnalyticsData() {
   const orgId = env.NEXT_PUBLIC_DEFAULT_ORG_ID;
+  let insights;
+  let hasError = false;
+
   try {
-    const insights = await withTimeout(getInsights(orgId, 7));
-    return <AnalyticsWorkbench orgId={orgId} initialInsights={insights} />;
+    insights = await withTimeout(getInsights(orgId, 7));
   } catch {
+    hasError = true;
+  }
+
+  if (!hasError && insights) {
+    return <AnalyticsWorkbench orgId={orgId} initialInsights={insights} />;
+  }
+
+  {
     const fallbackInsights = {
       days: 7,
       refreshedAt: new Date(0).toISOString(),
@@ -51,7 +61,6 @@ async function AnalyticsData() {
       },
       kpis: [],
     };
-
     return (
       <>
         <DataUnavailableBanner />

@@ -21,7 +21,7 @@ export function ComplianceManager({ orgId, initialRecords }: ComplianceManagerPr
   const [error, setError] = useState<string | null>(null);
   const { data: records = initialRecords } = useQuery({
     queryKey: queryKeys.compliance(orgId, 1, 200),
-    queryFn: () => apiGet<ComplianceListItem[]>("/api/compliance", { orgId, page: 1, limit: 200 }),
+    queryFn: () => apiGet<ComplianceListItem[]>("/api/compliance", { orgId, page: 1, limit: 50 }),
     initialData: initialRecords,
   });
   const [status, setStatus] = useState("attention_required");

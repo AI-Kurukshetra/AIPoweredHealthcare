@@ -4,13 +4,10 @@ import { ZodError } from "zod";
 import { updateScheduleSchema } from "@/features/schedules/schemas";
 import { AuthError, resolveAuthContext } from "@/lib/auth/session";
 import { logAudit } from "@/lib/audit/log";
+import { resolveOrgId } from "@/lib/api/request";
 import { fail, ok } from "@/lib/api/responses";
 import { updateScheduleById } from "@/services/schedules/schedule-service";
 import { getRequestIp } from "@/utils/http";
-
-function resolveOrgId(request: NextRequest) {
-  return request.nextUrl.searchParams.get("orgId");
-}
 
 export async function PATCH(
   request: NextRequest,

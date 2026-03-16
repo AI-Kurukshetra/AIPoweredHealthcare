@@ -9,21 +9,34 @@ import { withTimeout } from "@/lib/fetch-with-timeout";
 
 async function VisitsData() {
   const orgId = env.NEXT_PUBLIC_DEFAULT_ORG_ID;
+  let visits: Awaited<ReturnType<typeof getVisits>> = [];
+  let patients: Awaited<ReturnType<typeof getPatients>> = [];
+  let staff: Awaited<ReturnType<typeof getStaff>> = [];
+  let hasError = false;
+
   try {
-    const [visits, patients, staff] = await withTimeout(
+    const result = await withTimeout(
       Promise.all([getVisits(orgId), getPatients(orgId), getStaff(orgId)])
     );
+    visits = result[0];
+    patients = result[1];
+    staff = result[2];
+  } catch {
+    hasError = true;
+  }
+
+  if (!hasError) {
     return (
       <VisitManager orgId={orgId} initialVisits={visits} patients={patients} staff={staff} />
     );
-  } catch {
-    return (
-      <>
-        <DataUnavailableBanner />
-        <VisitManager orgId={orgId} initialVisits={[]} patients={[]} staff={[]} />
-      </>
-    );
   }
+
+  return (
+    <>
+      <DataUnavailableBanner />
+      <VisitManager orgId={orgId} initialVisits={[]} patients={[]} staff={[]} />
+    </>
+  );
 }
 
 export default function VisitsPage() {

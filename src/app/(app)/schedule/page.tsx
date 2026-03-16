@@ -10,10 +10,23 @@ import { withTimeout } from "@/lib/fetch-with-timeout";
 
 async function ScheduleData() {
   const orgId = env.NEXT_PUBLIC_DEFAULT_ORG_ID;
+  let schedules: Awaited<ReturnType<typeof getSchedules>> = [];
+  let patients: Awaited<ReturnType<typeof getPatients>> = [];
+  let staff: Awaited<ReturnType<typeof getStaff>> = [];
+  let hasError = false;
+
   try {
-    const [schedules, patients, staff] = await withTimeout(
+    const result = await withTimeout(
       Promise.all([getSchedules(orgId), getPatients(orgId), getStaff(orgId)])
     );
+    schedules = result[0];
+    patients = result[1];
+    staff = result[2];
+  } catch {
+    hasError = true;
+  }
+
+  if (!hasError) {
     return (
       <ScheduleManager
         orgId={orgId}
@@ -22,14 +35,14 @@ async function ScheduleData() {
         staff={staff}
       />
     );
-  } catch {
-    return (
-      <>
-        <DataUnavailableBanner />
-        <ScheduleManager orgId={orgId} initialSchedules={[]} patients={[]} staff={[]} />
-      </>
-    );
   }
+
+  return (
+    <>
+      <DataUnavailableBanner />
+      <ScheduleManager orgId={orgId} initialSchedules={[]} patients={[]} staff={[]} />
+    </>
+  );
 }
 
 export default function SchedulePage() {

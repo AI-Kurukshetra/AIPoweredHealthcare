@@ -1,20 +1,18 @@
+import { unstable_cache } from "next/cache";
 import { NextRequest } from "next/server";
 import { ZodError } from "zod";
 
 import { createBillingRecordSchema } from "@/features/billing/schemas";
 import { AuthError, resolveAuthContext } from "@/lib/auth/session";
+import { LIST_CACHE_REVALIDATE_SEC } from "@/lib/api/cache";
 import { logAudit } from "@/lib/audit/log";
-import { privateCacheHeaders, resolvePagination } from "@/lib/api/request";
+import { privateCacheHeaders, resolveOrgId, resolvePagination } from "@/lib/api/request";
 import { fail, ok } from "@/lib/api/responses";
 import {
   createBillingRecord,
   listBillingRecords,
 } from "@/services/billing/billing-service";
 import { getRequestIp } from "@/utils/http";
-
-function resolveOrgId(request: NextRequest) {
-  return request.nextUrl.searchParams.get("orgId");
-}
 
 export async function GET(request: NextRequest) {
   const orgId = resolveOrgId(request);
@@ -31,7 +29,11 @@ export async function GET(request: NextRequest) {
   try {
     const pagination = resolvePagination(request, { limit: 100, maxLimit: 200 });
     const { user, supabase } = await resolveAuthContext(orgId);
-    const records = await listBillingRecords(supabase, orgId, pagination);
+    const records = await unstable_cache(
+      () => listBillingRecords(supabase, orgId, pagination),
+      ["api-billing", orgId, String(pagination.offset), String(pagination.limit)],
+      { revalidate: LIST_CACHE_REVALIDATE_SEC }
+    )();
 
     logAudit({
       supabase,

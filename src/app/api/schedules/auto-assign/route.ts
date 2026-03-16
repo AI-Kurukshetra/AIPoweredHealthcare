@@ -1,14 +1,11 @@
 import { NextRequest } from "next/server";
 
 import { AuthError, resolveAuthContext } from "@/lib/auth/session";
-import { logAudit } from "@/lib/audit/log";
+import { resolveOrgId } from "@/lib/api/request";
 import { fail, ok } from "@/lib/api/responses";
 import { autoAssignSchedules } from "@/services/schedules/auto-assign-service";
 import { getRequestIp } from "@/utils/http";
-
-function resolveOrgId(request: NextRequest) {
-  return request.nextUrl.searchParams.get("orgId");
-}
+import { logAudit } from "@/lib/audit/log";
 
 export async function POST(request: NextRequest) {
   const orgId = resolveOrgId(request);

@@ -2,23 +2,24 @@ import { Suspense } from "react";
 
 import { CommunicationsManager } from "@/components/features/communications/CommunicationsManager";
 import { env } from "@/config/env";
-import {
-  getChannels,
-  getMessages,
-} from "@/features/communications/server/get-channels";
+import { getChannelsAndMessages } from "@/features/communications/server/get-channels";
 import { withTimeout } from "@/lib/fetch-with-timeout";
 
 async function CommunicationsData() {
   const orgId = env.NEXT_PUBLIC_DEFAULT_ORG_ID;
+  let channels: Awaited<ReturnType<typeof getChannelsAndMessages>>["channels"] = [];
+  let messages: Awaited<ReturnType<typeof getChannelsAndMessages>>["messages"] = [];
+  let hasError = false;
+
   try {
-    const [channels, messages] = await withTimeout(
-      (async () => {
-        const ch = await getChannels(orgId);
-        const sel = ch[0];
-        const msgs = sel ? await getMessages(orgId, sel.id) : [];
-        return [ch, msgs] as const;
-      })()
-    );
+    const result = await withTimeout(getChannelsAndMessages(orgId));
+    channels = result.channels;
+    messages = result.messages;
+  } catch {
+    hasError = true;
+  }
+
+  if (!hasError) {
     return (
       <CommunicationsManager
         orgId={orgId}
@@ -26,14 +27,14 @@ async function CommunicationsData() {
         initialMessages={messages}
       />
     );
-  } catch {
-    return (
-      <>
-        <DataUnavailableBanner />
-        <CommunicationsManager orgId={orgId} initialChannels={[]} initialMessages={[]} />
-      </>
-    );
   }
+
+  return (
+    <>
+      <DataUnavailableBanner />
+      <CommunicationsManager orgId={orgId} initialChannels={[]} initialMessages={[]} />
+    </>
+  );
 }
 
 export default function CommunicationsPage() {

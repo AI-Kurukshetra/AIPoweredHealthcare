@@ -1,7 +1,7 @@
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { listSchedules } from "@/services/schedules/schedule-service";
 
 export async function getSchedules(orgId: string) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   return listSchedules(supabase, orgId);
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/api/client";
 import { queryKeys } from "@/lib/query/keys";
@@ -31,9 +31,11 @@ type LiveMetricsPanelProps = {
 };
 
 export function LiveMetricsPanel({ orgId, initial }: LiveMetricsPanelProps) {
-  const refreshIntervalMs = 180_000;
+  const refreshIntervalMs = 600_000; // 10 min (reduces Disk IO from analytics polling)
   const [error, setError] = useState<string | null>(null);
-  const [lastUpdatedLabel, setLastUpdatedLabel] = useState("Pending");
+  const [lastUpdatedLabel, setLastUpdatedLabel] = useState(
+    () => new Date().toLocaleTimeString()
+  );
   const {
     data: metrics = initial,
     isFetching: isLoading,
@@ -45,20 +47,11 @@ export function LiveMetricsPanel({ orgId, initial }: LiveMetricsPanelProps) {
     refetchInterval: refreshIntervalMs,
   });
 
-  useEffect(() => {
-    setLastUpdatedLabel(new Date().toLocaleTimeString());
-  }, []);
-
-  useEffect(() => {
-    if (!isLoading) {
-      setLastUpdatedLabel(new Date().toLocaleTimeString());
-    }
-  }, [isLoading, metrics]);
-
   async function refresh() {
     setError(null);
     try {
       await refetch();
+      setLastUpdatedLabel(new Date().toLocaleTimeString());
     } catch {
       setError("Unable to refresh metrics.");
     }

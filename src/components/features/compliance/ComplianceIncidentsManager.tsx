@@ -1,6 +1,6 @@
-"use client";
+ "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { IncidentTable } from "@/components/features/incidents/IncidentTable";
@@ -17,12 +17,11 @@ export function ComplianceIncidentsManager({
   orgId,
   initialIncidents,
 }: ComplianceIncidentsManagerProps) {
-  const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState("open");
   const [severity, setSeverity] = useState("all");
   const { data: incidentsData = initialIncidents } = useQuery({
     queryKey: queryKeys.incidents(orgId, 1, 200),
-    queryFn: () => apiGet<IncidentListItem[]>("/api/incidents", { orgId, page: 1, limit: 200 }),
+    queryFn: () => apiGet<IncidentListItem[]>("/api/incidents", { orgId, page: 1, limit: 50 }),
     initialData: initialIncidents,
   });
   const incidents = useMemo(
@@ -40,13 +39,8 @@ export function ComplianceIncidentsManager({
     [incidents, severity, status]
   );
 
-  useEffect(() => {
-    setError(null);
-  }, [orgId]);
-
   return (
     <div className="space-y-4">
-      {error ? <p className="text-sm text-rose-700">{error}</p> : null}
       <div className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 md:grid-cols-2">
         <select
           value={status}

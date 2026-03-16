@@ -4,14 +4,10 @@ import { ZodError } from "zod";
 import { updateVisitSchema } from "@/features/visits/schemas";
 import { AuthError, resolveAuthContext } from "@/lib/auth/session";
 import { logAudit } from "@/lib/audit/log";
-import { privateCacheHeaders } from "@/lib/api/request";
+import { privateCacheHeaders, resolveOrgId } from "@/lib/api/request";
 import { fail, ok } from "@/lib/api/responses";
 import { getVisitById, updateVisitById } from "@/services/visits/visit-service";
 import { getRequestIp } from "@/utils/http";
-
-function resolveOrgId(request: NextRequest) {
-  return request.nextUrl.searchParams.get("orgId");
-}
 
 export async function GET(
   request: NextRequest,

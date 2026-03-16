@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { CredentialListItem } from "@/features/credentials/types";
@@ -70,10 +70,10 @@ export function CredentialManager({
     setError(null);
     try {
       await createCredentialMutation.mutateAsync({
-          staffId,
-          credentialType,
-          credentialNumber: credentialNumber || undefined,
-          expiresAt: new Date(expiresAt).toISOString(),
+        staffId,
+        credentialType,
+        credentialNumber: credentialNumber || undefined,
+        expiresAt: new Date(expiresAt).toISOString(),
       });
       setCredentialType("");
       setCredentialNumber("");
@@ -150,11 +150,21 @@ export function CredentialManager({
             <tbody>
               {filtered.map((credential) => (
                 <tr key={credential.id} className="border-t border-slate-100">
-                  <td className="px-4 py-3 text-slate-900">{credential.credentialType}</td>
-                  <td className="px-4 py-3 text-slate-700">{credential.credentialNumber ?? "N/A"}</td>
-                  <td className="px-4 py-3 text-slate-700">{formatDate(credential.issuedAt)}</td>
-                  <td className="px-4 py-3 text-slate-700">{formatDate(credential.expiresAt)}</td>
-                  <td className="px-4 py-3 capitalize text-slate-700">{credential.status}</td>
+                  <td className="px-4 py-3 text-slate-900">
+                    {credential.credentialType}
+                  </td>
+                  <td className="px-4 py-3 text-slate-700">
+                    {credential.credentialNumber ?? "N/A"}
+                  </td>
+                  <td className="px-4 py-3 text-slate-700">
+                    {formatDate(credential.issuedAt)}
+                  </td>
+                  <td className="px-4 py-3 text-slate-700">
+                    {formatDate(credential.expiresAt)}
+                  </td>
+                  <td className="px-4 py-3 capitalize text-slate-700">
+                    {credential.status}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -164,3 +174,4 @@ export function CredentialManager({
     </div>
   );
 }
+

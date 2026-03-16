@@ -1,25 +1,17 @@
-import { createClient } from "@/lib/supabase/server";
-import { provisionUserAccess } from "@/lib/auth/provision";
+import { unstable_cache } from "next/cache";
+
+import { createAdminClient } from "@/lib/supabase/admin";
 import { listPatients } from "@/services/patients/patient-service";
 
+const CACHE_REVALIDATE_SEC = 60;
+
 export async function getPatients(orgId: string) {
-  const supabase = await createClient();
-  const patients = await listPatients(supabase, orgId);
-
-  if (patients.length > 0) {
-    return patients;
-  }
-
-  // RLS returns an empty result set when the signed-in user is not yet an active
-  // org member. Provision access and retry once to recover existing records.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user?.id || !user.email) {
-    return patients;
-  }
-
-  await provisionUserAccess(user.id, user.email, user.user_metadata?.full_name);
-  return listPatients(supabase, orgId);
+  return unstable_cache(
+    async () => {
+      const supabase = createAdminClient();
+      return listPatients(supabase, orgId);
+    },
+    ["server-patients", orgId],
+    { revalidate: CACHE_REVALIDATE_SEC }
+  )();
 }

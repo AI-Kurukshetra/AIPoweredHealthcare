@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { StaffTable } from "@/components/features/staff/StaffTable";
@@ -15,10 +15,9 @@ type StaffManagerProps = {
 };
 
 export function StaffManager({ orgId, initialStaff }: StaffManagerProps) {
-  const [error, setError] = useState<string | null>(null);
   const { data: staff = initialStaff } = useQuery({
     queryKey: queryKeys.staff(orgId, 1, 200),
-    queryFn: () => apiGet<StaffListItem[]>("/api/staff", { orgId, page: 1, limit: 200 }),
+    queryFn: () => apiGet<StaffListItem[]>("/api/staff", { orgId, page: 1, limit: 50 }),
     initialData: initialStaff,
   });
   const [query, setQuery] = useState("");
@@ -49,7 +48,6 @@ export function StaffManager({ orgId, initialStaff }: StaffManagerProps) {
 
   return (
     <div className="space-y-4">
-      {error ? <p className="text-sm text-rose-700">{error}</p> : null}
       <div className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 md:grid-cols-3">
         <input
           value={query}

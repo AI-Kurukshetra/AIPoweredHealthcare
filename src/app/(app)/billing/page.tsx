@@ -7,17 +7,25 @@ import { withTimeout } from "@/lib/fetch-with-timeout";
 
 async function BillingData() {
   const orgId = env.NEXT_PUBLIC_DEFAULT_ORG_ID;
+  let records;
+  let hasError = false;
+
   try {
-    const records = await withTimeout(getBillingRecords(orgId));
-    return <BillingManager orgId={orgId} initialRecords={records} />;
+    records = await withTimeout(getBillingRecords(orgId));
   } catch {
-    return (
-      <>
-        <DataUnavailableBanner />
-        <BillingManager orgId={orgId} initialRecords={[]} />
-      </>
-    );
+    hasError = true;
   }
+
+  if (!hasError && records) {
+    return <BillingManager orgId={orgId} initialRecords={records} />;
+  }
+
+  return (
+    <>
+      <DataUnavailableBanner />
+      <BillingManager orgId={orgId} initialRecords={[]} />
+    </>
+  );
 }
 
 export default function BillingPage() {

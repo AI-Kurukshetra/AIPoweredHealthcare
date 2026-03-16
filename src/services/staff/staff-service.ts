@@ -14,6 +14,7 @@ export async function listStaff(
 ): Promise<StaffListItem[]> {
   const offset = options.offset ?? 0;
   const limit = options.limit ?? 100;
+
   const [membersResult, profilesResult] = await Promise.all([
     supabase
       .from("organization_members")
@@ -40,13 +41,11 @@ export async function listStaff(
   }
 
   const members = membersResult.data;
-  const profiles = profilesResult.data;
+  const profiles = profilesResult.data ?? [];
 
-  if (!members.length) {
-    return [];
-  }
+  if (!members.length) return [];
 
-  const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
+  const profilesById = new Map(profiles.map((p) => [p.id, p]));
 
   return members.map((member) => {
     const profile = profilesById.get(member.user_id);

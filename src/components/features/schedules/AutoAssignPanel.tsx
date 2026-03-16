@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { env } from "@/config/env";
 import { apiPost } from "@/lib/api/client";
+import { useToast } from "@/hooks/useToast";
 
 type AutoAssignResponse = {
   totalCandidates: number;
@@ -22,6 +23,7 @@ export function AutoAssignPanel() {
   const [isRunning, setIsRunning] = useState(false);
   const [result, setResult] = useState<AutoAssignResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { showSuccess, showError } = useToast();
 
   const endpoint = useMemo(
     () => "/api/schedules/auto-assign",
@@ -37,9 +39,18 @@ export function AutoAssignPanel() {
       await queryClient.invalidateQueries({
         queryKey: ["schedules", env.NEXT_PUBLIC_DEFAULT_ORG_ID],
       });
+      showSuccess({
+        title: "Auto-assign complete",
+        description: `Assigned ${payload.assigned} of ${payload.totalCandidates} appointments.`,
+      });
     },
     onError: (mutationError: Error) => {
-      setError(mutationError.message || "Auto-assignment failed.");
+      const message = mutationError.message || "Auto-assignment failed.";
+      setError(message);
+      showError({
+        title: "Auto-assign failed",
+        description: message,
+      });
     },
   });
 

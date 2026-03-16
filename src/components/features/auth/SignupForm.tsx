@@ -1,8 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Eye, EyeOff } from "lucide-react";
 
 import { signUpWithPasswordAction, type SignupFormState } from "@/features/auth/actions";
 import { Button } from "@/components/ui/button";
@@ -48,6 +48,8 @@ function FieldErrors({ errors }: { errors?: string[] }) {
 
 export function SignupForm({ nextPath }: SignupFormProps) {
   const [state, formAction] = useActionState(signUpWithPasswordAction, initialState);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   return (
     <form action={formAction} className="space-y-4">
@@ -66,6 +68,22 @@ export function SignupForm({ nextPath }: SignupFormProps) {
         <FieldErrors errors={state.fieldErrors?.fullName} />
       </div>
       <div className="space-y-2">
+        <Label htmlFor="role">Role</Label>
+        <select
+          id="role"
+          name="role"
+          defaultValue={state.values?.role ?? "care_coordinator"}
+          className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <option value="patient">Patient</option>
+          <option value="field_nurse">Field Nurse</option>
+          <option value="care_coordinator">Care Coordinator</option>
+          <option value="billing_staff">Billing Staff</option>
+          <option value="org_admin">Organization Admin</option>
+        </select>
+        <FieldErrors errors={state.fieldErrors?.role} />
+      </div>
+      <div className="space-y-2">
         <Label htmlFor="email">Email</Label>
         <Input
           id="email"
@@ -80,26 +98,48 @@ export function SignupForm({ nextPath }: SignupFormProps) {
       </div>
       <div className="space-y-2">
         <Label htmlFor="password">Password</Label>
-        <Input
-          id="password"
-          name="password"
-          type="password"
-          required
-          autoComplete="new-password"
-          aria-invalid={Boolean(state.fieldErrors?.password?.length)}
-        />
+        <div className="relative">
+          <Input
+            id="password"
+            name="password"
+            type={showPassword ? "text" : "password"}
+            required
+            autoComplete="new-password"
+            aria-invalid={Boolean(state.fieldErrors?.password?.length)}
+            className="pr-10"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((prev) => !prev)}
+            className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-500 hover:text-slate-700"
+            aria-label={showPassword ? "Hide password" : "Show password"}
+          >
+            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        </div>
         <FieldErrors errors={state.fieldErrors?.password} />
       </div>
       <div className="space-y-2">
         <Label htmlFor="confirmPassword">Confirm password</Label>
-        <Input
-          id="confirmPassword"
-          name="confirmPassword"
-          type="password"
-          required
-          autoComplete="new-password"
-          aria-invalid={Boolean(state.fieldErrors?.confirmPassword?.length)}
-        />
+        <div className="relative">
+          <Input
+            id="confirmPassword"
+            name="confirmPassword"
+            type={showConfirmPassword ? "text" : "password"}
+            required
+            autoComplete="new-password"
+            aria-invalid={Boolean(state.fieldErrors?.confirmPassword?.length)}
+            className="pr-10"
+          />
+          <button
+            type="button"
+            onClick={() => setShowConfirmPassword((prev) => !prev)}
+            className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-500 hover:text-slate-700"
+            aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+          >
+            {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        </div>
         <FieldErrors errors={state.fieldErrors?.confirmPassword} />
       </div>
 
